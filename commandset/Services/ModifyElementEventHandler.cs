@@ -50,10 +50,12 @@ namespace RevitMCPCommandSet.Services
                 }
 
                 var results = new List<ParameterChangeResult>();
+                var failures = new TransactionFailureHandler();
 
                 using (var transaction = new Transaction(doc, "MCP: modify_element"))
                 {
                     transaction.Start();
+                    failures.Attach(transaction);
 
                     foreach (var change in Changes)
                     {
@@ -69,11 +71,24 @@ namespace RevitMCPCommandSet.Services
                         transaction.RollBack();
                 }
 
+                // A Revit-level error rolls the whole transaction back, so no change stuck
+                // even if the individual writes reported ok.
+                if (failures.HasErrors)
+                {
+                    foreach (var result in results)
+                    {
+                        if (result.Status != "ok") continue;
+                        result.Status = "error";
+                        result.Message = "Rolled back by Revit";
+                    }
+                }
+
                 int okCount = results.FindAll(r => r.Status == "ok").Count;
                 Result = new AIResult<List<ParameterChangeResult>>
                 {
                     Success = okCount > 0,
-                    Message = okCount + " of " + results.Count + " parameter(s) updated on element " + ElementId,
+                    Message = okCount + " of " + results.Count + " parameter(s) updated on element "
+                        + ElementId + failures.Summarize(),
                     Response = results
                 };
             }

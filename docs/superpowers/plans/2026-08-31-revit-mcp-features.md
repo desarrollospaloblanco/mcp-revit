@@ -4,21 +4,26 @@
 
 **Goal:** Extender el fork local de `mcp-server-for-revit` para implementar `modify_element`, `get_parameter`, `set_parameter` y soporte para Revit 2026, logrando un toolset completo y funcional sin depender de `send_code_to_revit` como workaround para operaciones de parámetros.
 
-**Architecture:** El repositorio tiene dos componentes acoplados: un servidor MCP en TypeScript/Node.js (el paquete npm) y un add-in de Revit en C# (`RevitMCPCommandSet.dll`). Cada nueva herramienta requiere implementación en ambos lados: una clase C# que implementa `IRevitCommand` en el add-in, y un archivo `.ts` que registra el tool en el servidor MCP. La comunicación entre ambos lados es WebSocket en el puerto 8080. El ciclo de desarrollo para cada feature es: prototipo con `send_code_to_revit` → implementar C# → compilar → desplegar DLL → reiniciar Revit → verificar → iterar.
+**Architecture:** El repositorio tiene tres componentes acoplados: un servidor MCP en TypeScript/Node.js (`server/`), el host del add-in en C# (`plugin/`, que expone el socket y la UI) y el set de comandos en C# (`commandset/`, que compila a `RevitMCPCommandSet.dll`). Cada nueva herramienta requiere implementación en dos lados: un par **Command + EventHandler** en el commandset, y un archivo `.ts` que registra el tool en el servidor MCP. La comunicación es un **socket TCP plano en `localhost:8080` hablando JSON-RPC 2.0** (un objeto JSON por mensaje), no WebSocket.
 
-**Tech Stack:** TypeScript + Node.js (MCP server), C# / .NET Framework 4.8 (Revit add-in), MSBuild 2019, Revit API 2025 + 2026, zod (validación de esquemas), Newtonsoft.Json (serialización C#).
+El ciclo de desarrollo real es: prototipo con `send_code_to_revit` → implementar C# → **cerrar Revit** → compilar (el build despliega solo) → abrir Revit → verificar → iterar. Cerrar Revit es obligatorio, no opcional: mientras corre mantiene bloqueado el DLL y el paso de copia del build falla.
+
+**Tech Stack:** TypeScript + Node.js (MCP server), C# / .NET 8 (Revit add-in para 2025 y 2026), .NET SDK, Revit API 2025 + 2026 vía NuGet, zod (validación de esquemas), Newtonsoft.Json (serialización C#).
 
 **Spec:** `docs/superpowers/plans/2026-08-31-revit-mcp-features.md` (este archivo)
 
+> **Corregido tras inspeccionar el repo (2026-09-01).** El plan original se escribió sobre supuestos que no coinciden con el repositorio real. Las constantes, rutas y comandos de abajo ya están corregidos. Ver la sección [Desviaciones respecto al plan original](#desviaciones-respecto-al-plan-original) al final.
+
 ## Global Constraints
 
-- C# target framework: `net48` (requerido por Revit API)
-- MSBuild en: `C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\MSBuild\Current\Bin\MSBuild.exe`
-- RevitAPI 2025: `C:\Program Files\Autodesk\Revit 2025\RevitAPI.dll`
-- RevitAPI 2026: `C:\Program Files\Autodesk\Revit 2026\RevitAPI.dll`
-- SDK del add-in: `RevitMCPSDK.dll` (ya instalado en `Addins\2025\revit_mcp_plugin\`)
-- Deploy DLL 2025: `C:\Users\jborrayo.DPB\AppData\Roaming\Autodesk\Revit\Addins\2025\revit_mcp_plugin\Commands\RevitMCPCommandSet\2025\`
-- Logs del add-in: `C:\Users\jborrayo.DPB\AppData\Roaming\Autodesk\Revit\Addins\2025\revit_mcp_plugin\Logs\`
+- C# target framework: **`net8.0-windows10.0.19041.0`** para Revit 2025 y 2026 (`net48` solo aplica a R20-R24)
+- Build con **`dotnet build`**, no con MSBuild 2019: los proyectos son SDK-style y apuntan a .NET 8
+- Configuraciones de build: `Debug R25`, `Release R25`, `Debug R26`, `Release R26` (ya existen en ambos `.csproj`)
+- Las referencias a la API de Revit vienen por **NuGet** (`Nice3point.Revit.Api.RevitAPI`, `Nice3point.Revit.Api.RevitAPIUI`, `RevitMCPSDK`), no por `HintPath` a `C:\Program Files\Autodesk\`
+- Las configuraciones `Debug *` **auto-despliegan** a `%AppData%\Autodesk\Revit\Addins\<version>\`; no hay que copiar DLLs a mano
+- **Revit debe estar cerrado para compilar en `Debug`**: el add-in mantiene bloqueado `RevitMCPCommandSet.dll` y el copy step falla con `MSB3027`
+- Logs del add-in: `%AppData%\Autodesk\Revit\Addins\<version>\revit_mcp_plugin\Logs\mcp_YYYYMMDD.log`
+- Registro de comandos: `command.json` (raíz del repo, fuente de verdad) y `commandRegistry.json` (por versión, en `Addins\<version>\revit_mcp_plugin\Commands\`)
 - Repositorio upstream: `https://github.com/mcp-servers-for-revit/mcp-servers-for-revit`
 - Directorio de trabajo: `C:\Users\jborrayo.DPB\BIM Tools\Revit-MCP\`
 - No mezclar cambios no relacionados en un mismo commit
@@ -28,27 +33,48 @@
 
 ## Mapa de archivos
 
+Estructura real verificada en el Task 0:
+
 ```
 Revit-MCP/                              (directorio de trabajo)
+├── command.json                        MODIFICAR: registrar los 3 comandos nuevos
+├── mcp-servers-for-revit.sln
 ├── docs/superpowers/plans/             (este archivo)
-├── mcp-server/                         (clonado del repo - servidor TypeScript)
+├── server/                             (servidor MCP en TypeScript)
 │   ├── src/
-│   │   └── tools/
-│   │       ├── modify_element.ts       MODIFICAR: implementar (stub vacío)
-│   │       ├── get_parameter.ts        CREAR: nueva herramienta
-│   │       └── set_parameter.ts        CREAR: nueva herramienta
+│   │   ├── tools/
+│   │   │   ├── register.ts             SIN CAMBIOS: auto-descubre los archivos de tools/
+│   │   │   ├── modify_element.ts       MODIFICAR: implementar (archivo vacío, 0 bytes)
+│   │   │   ├── get_parameter.ts        CREAR
+│   │   │   └── set_parameter.ts        CREAR
+│   │   └── utils/ConnectionManager.ts  (withRevitConnection -> TCP localhost:8080)
 │   ├── package.json
 │   └── tsconfig.json
-└── revit-plugin/                       (clonado del repo - add-in C#)
-    └── RevitMCPCommandSet/
-        ├── RevitMCPCommandSet.csproj   MODIFICAR: referencias para 2025 y 2026
-        └── Commands/
-            ├── ModifyElementCommand.cs MODIFICAR: implementar (stub vacío)
-            ├── GetParameterCommand.cs  CREAR: nueva clase
-            └── SetParameterCommand.cs  CREAR: nueva clase
+├── commandset/                         (add-in C#: comandos)
+│   ├── RevitMCPCommandSet.csproj       SIN CAMBIOS: ya soporta R20-R26
+│   ├── Models/Common/
+│   │   └── ParameterInfo.cs            CREAR: modelos de parámetros
+│   ├── Services/
+│   │   ├── ParameterUtils.cs           CREAR: lógica compartida de lectura/escritura
+│   │   ├── ModifyElementEventHandler.cs CREAR
+│   │   ├── GetParameterEventHandler.cs  CREAR
+│   │   └── SetParameterEventHandler.cs  CREAR
+│   └── Commands/Parameters/            CREAR: carpeta nueva
+│       ├── ParameterCommandParsing.cs  CREAR: parseo compartido de argumentos
+│       ├── ModifyElementCommand.cs     CREAR (no existía ningún stub)
+│       ├── GetParameterCommand.cs      CREAR
+│       └── SetParameterCommand.cs      CREAR
+└── plugin/                             (add-in C#: host, WebSocket, UI)
+    ├── RevitMCPPlugin.csproj           SIN CAMBIOS: ya soporta R20-R26
+    └── mcp-servers-for-revit.addin     SIN CAMBIOS: se despliega solo
 ```
 
-**Nota:** La estructura exacta del repo se verifica en el Task 0. Los paths anteriores son aproximados basados en las convenciones del proyecto.
+**Patrón obligatorio de cada comando.** No existe `IRevitCommand.Execute(JObject, Document)`. Cada comando son **dos clases**:
+
+1. `XCommand : ExternalEventCommandBase` - parsea el `JObject`, llena el handler, llama `RaiseAndWaitForCompletion(ms)` y devuelve el resultado.
+2. `XEventHandler : IExternalEventHandler, IWaitableExternalEventHandler` - corre en el hilo de Revit, abre la `Transaction` y publica el resultado.
+
+Referencia viva: `commandset/Commands/Delete/DeleteElementCommand.cs` + `commandset/Services/DeleteElementEventHandler.cs`.
 
 ---
 
@@ -86,8 +112,7 @@ Anotar la firma exacta de `IRevitCommand` - especialmente la firma del método `
 - [ ] **Step 4: Instalar dependencias del servidor TypeScript**
 
 ```powershell
-# Ajustar ruta según la estructura descubierta en Step 2
-cd "C:\Users\jborrayo.DPB\BIM Tools\Revit-MCP\mcp-server"  # O la ruta real
+cd "C:\Users\jborrayo.DPB\BIM Tools\Revit-MCP\server"  # O la ruta real
 npm install
 ```
 
@@ -102,12 +127,13 @@ Esperado: BUILD SUCCESSFUL sin errores. Si falla, leer error y corregir dependen
 - [ ] **Step 6: Verificar build inicial del add-in C#**
 
 ```powershell
-$msb = "C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\MSBuild\Current\Bin\MSBuild.exe"
-# Ajustar ruta según Step 2
-& $msb "RevitMCPCommandSet.csproj" /p:Configuration=Release /t:Build
+cd "C:\Users\jborrayo.DPB\BIM Tools\Revit-MCP"
+dotnet build commandset/RevitMCPCommandSet.csproj -c "Debug R25"
 ```
 
-Esperado: Build succeeded. Si falla por referencias faltantes a `RevitAPI.dll`, verificar que el `.csproj` las referencia como HintPath desde `C:\Program Files\Autodesk\Revit 2025\`.
+Esperado: `Build succeeded. 0 Error(s)`. Las referencias a la API de Revit se restauran por NuGet, no hay HintPath que revisar.
+
+Si Revit 2025 está abierto, la compilación **sí funciona** pero el paso de copia falla con `MSB3027 ... The file is locked by: "Autodesk Revit"`. Eso no es un error de código: cerrar Revit y repetir.
 
 - [ ] **Step 7: Configurar Claude Code para usar el servidor local en lugar del npm**
 
@@ -117,12 +143,12 @@ Editar `~/.claude.json` - cambiar la entrada `mcp-server-for-revit`:
 "mcp-server-for-revit": {
   "type": "stdio",
   "command": "node",
-  "args": ["C:/Users/jborrayo.DPB/BIM Tools/Revit-MCP/mcp-server/build/index.js"],
+  "args": ["C:/Users/jborrayo.DPB/BIM Tools/Revit-MCP/server/build/index.js"],
   "env": {}
 }
 ```
 
-(Ajustar path del `build/index.js` según la estructura real del repo.)
+El path apunta al build local; hay que rehacerlo si el repositorio se mueve de carpeta.
 
 - [ ] **Step 8: Verificar conexión con el servidor local**
 
@@ -236,7 +262,7 @@ Esperado: el parámetro cambia en Revit. Documentar cualquier edge case encontra
 ## Task 2: Implementar ModifyElementCommand en C#
 
 **Files:**
-- Modifica: `revit-plugin/RevitMCPCommandSet/Commands/ModifyElementCommand.cs` (o la ruta exacta del repo)
+- Modifica: `commandset/Commands/Parameters/ModifyElementCommand.cs` (o la ruta exacta del repo)
 
 **Interfaces:**
 - Consumes: firma exacta de `IRevitCommand` (descubierta en Task 0, Step 3)
@@ -366,22 +392,22 @@ Agregar la entrada al final del array `Commands` en:
 
 - [ ] **Step 4: Compilar el C#**
 
+**Cerrar Revit primero.** Con Revit abierto el DLL está bloqueado y el despliegue falla.
+
 ```powershell
-$msb = "C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\MSBuild\Current\Bin\MSBuild.exe"
 cd "C:\Users\jborrayo.DPB\BIM Tools\Revit-MCP"
-# Ajustar ruta al .csproj según la estructura real del repo
-& $msb "revit-plugin\RevitMCPCommandSet\RevitMCPCommandSet.csproj" /p:Configuration=Release /t:Build
+dotnet build commandset/RevitMCPCommandSet.csproj -c "Debug R25"
 ```
 
 Esperado: `Build succeeded. 0 Error(s)`.
 
 - [ ] **Step 5: Desplegar el DLL compilado**
 
+No hay paso manual: el target `DeployCommandSet` del `.csproj` ya copió el DLL en el Step 4 porque la configuración es `Debug`. Confirmar la marca de tiempo:
+
 ```powershell
-$src = "C:\Users\jborrayo.DPB\BIM Tools\Revit-MCP\revit-plugin\RevitMCPCommandSet\bin\Release\RevitMCPCommandSet.dll"
-$dst = "C:\Users\jborrayo.DPB\AppData\Roaming\Autodesk\Revit\Addins\2025\revit_mcp_plugin\Commands\RevitMCPCommandSet\2025\"
-Copy-Item $src $dst -Force
-Write-Host "Deploy OK: $((Get-Item "$dst\RevitMCPCommandSet.dll").LastWriteTime)"
+$dst = "$env:AppData\Autodesk\Revit\Addins\2025\revit_mcp_plugin\Commands\RevitMCPCommandSet\2025\RevitMCPCommandSet.dll"
+Write-Host "Deploy: $((Get-Item $dst).LastWriteTime)"
 ```
 
 - [ ] **Step 6: Reiniciar Revit y activar el switch MCP**
@@ -396,7 +422,9 @@ $log = Get-ChildItem "C:\Users\jborrayo.DPB\AppData\Roaming\Autodesk\Revit\Addin
 Select-String "modify_element" $log.FullName
 ```
 
-Esperado: sin línea de `Failed to create command instance [modify_element]`. Si aparece, el error es en el C# - leer el log completo para la excepción.
+**OJO - el log miente.** `CommandManager.LoadCommandFromAssembly` tiene un bug upstream ([plugin/Core/CommandManager.cs:166](../../../plugin/Core/CommandManager.cs)): usa `_logger.Info` con el texto `Failed to create command instance [...]` **en la rama de éxito**. Ver esa línea NO significa que falló.
+
+Verificación real: la ausencia de una línea `_logger.Error` con el nombre completo del tipo (`RevitMCPCommandSet.Commands.Parameters.ModifyElementCommand`), y sobre todo que el comando responda por el socket. La verificación confiable es funcional, no por log.
 
 - [ ] **Step 8: Loop de verificación - probar desde Claude**
 
@@ -413,7 +441,7 @@ Si falla: leer el log (`mcp_YYYYMMDD.log`), corregir el C#, volver al Step 4. Re
 - [ ] **Step 9: Commit del C#**
 
 ```bash
-git add revit-plugin/RevitMCPCommandSet/Commands/ModifyElementCommand.cs
+git add commandset/Commands/Parameters/ModifyElementCommand.cs
 git commit -m "feat(revit): implement modify_element command with multi-type parameter support"
 ```
 
@@ -422,8 +450,8 @@ git commit -m "feat(revit): implement modify_element command with multi-type par
 ## Task 3: Implementar modify_element en el servidor TypeScript
 
 **Files:**
-- Modifica: `mcp-server/src/tools/modify_element.ts`
-- Modifica: `mcp-server/src/tools/register.ts` (si el stub no está ya registrado)
+- Modifica: `server/src/tools/modify_element.ts`
+- Modifica: `server/src/tools/register.ts` (si el stub no está ya registrado)
 
 **Interfaces:**
 - Consumes: `withRevitConnection` de `../utils/ConnectionManager.js` (patrón idéntico a `operate_element.ts`)
@@ -432,7 +460,7 @@ git commit -m "feat(revit): implement modify_element command with multi-type par
 - [ ] **Step 1: Leer el stub actual**
 
 ```powershell
-Get-Content "C:\Users\jborrayo.DPB\BIM Tools\Revit-MCP\mcp-server\src\tools\modify_element.ts"
+Get-Content "C:\Users\jborrayo.DPB\BIM Tools\Revit-MCP\server\src\tools\modify_element.ts"
 ```
 
 Si es `export {};`, reemplazarlo completamente.
@@ -506,7 +534,7 @@ export function registerModifyElementTool(server: any) {
 - [ ] **Step 3: Verificar que el tool está en register.ts**
 
 ```powershell
-Select-String "modify_element" "C:\Users\jborrayo.DPB\BIM Tools\Revit-MCP\mcp-server\src\tools\register.ts"
+Select-String "modify_element" "C:\Users\jborrayo.DPB\BIM Tools\Revit-MCP\server\src\tools\register.ts"
 ```
 
 Si no aparece, agregar el import y la llamada:
@@ -520,7 +548,7 @@ registerModifyElementTool(server);
 - [ ] **Step 4: Compilar el servidor TypeScript**
 
 ```powershell
-cd "C:\Users\jborrayo.DPB\BIM Tools\Revit-MCP\mcp-server"
+cd "C:\Users\jborrayo.DPB\BIM Tools\Revit-MCP\server"
 npm run build
 ```
 
@@ -542,7 +570,7 @@ Si falla: revisar si el problema es en la capa TypeScript (error antes de llegar
 - [ ] **Step 7: Commit**
 
 ```bash
-git add mcp-server/src/tools/modify_element.ts mcp-server/src/tools/register.ts
+git add server/src/tools/modify_element.ts
 git commit -m "feat(mcp): implement modify_element tool with zod schema validation"
 ```
 
@@ -551,7 +579,7 @@ git commit -m "feat(mcp): implement modify_element tool with zod schema validati
 ## Task 4: Implementar GetParameterCommand en C#
 
 **Files:**
-- Crea: `revit-plugin/RevitMCPCommandSet/Commands/GetParameterCommand.cs`
+- Crea: `commandset/Commands/Parameters/GetParameterCommand.cs`
 
 **Interfaces:**
 - Consumes: firma de `IRevitCommand` (misma de Task 2)
@@ -659,13 +687,11 @@ Agregar al array `Commands`:
 
 - [ ] **Step 3: Compilar y desplegar**
 
-```powershell
-$msb = "C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\MSBuild\Current\Bin\MSBuild.exe"
-& $msb "C:\Users\jborrayo.DPB\BIM Tools\Revit-MCP\revit-plugin\RevitMCPCommandSet\RevitMCPCommandSet.csproj" /p:Configuration=Release /t:Build
+Con Revit cerrado, un solo comando compila y despliega:
 
-$src = "C:\Users\jborrayo.DPB\BIM Tools\Revit-MCP\revit-plugin\RevitMCPCommandSet\bin\Release\RevitMCPCommandSet.dll"
-$dst = "C:\Users\jborrayo.DPB\AppData\Roaming\Autodesk\Revit\Addins\2025\revit_mcp_plugin\Commands\RevitMCPCommandSet\2025\"
-Copy-Item $src $dst -Force
+```powershell
+cd "C:\Users\jborrayo.DPB\BIM Tools\Revit-MCP"
+dotnet build commandset/RevitMCPCommandSet.csproj -c "Debug R25"
 ```
 
 - [ ] **Step 4: Reiniciar Revit, verificar log**
@@ -675,7 +701,7 @@ Verificar que no aparece `Failed to create command instance [get_parameter]` en 
 - [ ] **Step 5: Commit del C#**
 
 ```bash
-git add revit-plugin/RevitMCPCommandSet/Commands/GetParameterCommand.cs
+git add commandset/Commands/Parameters/GetParameterCommand.cs
 git commit -m "feat(revit): implement get_parameter command with full parameter serialization"
 ```
 
@@ -684,8 +710,8 @@ git commit -m "feat(revit): implement get_parameter command with full parameter 
 ## Task 5: Implementar get_parameter en el servidor TypeScript
 
 **Files:**
-- Crea: `mcp-server/src/tools/get_parameter.ts`
-- Modifica: `mcp-server/src/tools/register.ts`
+- Crea: `server/src/tools/get_parameter.ts`
+- Modifica: `server/src/tools/register.ts`
 
 **Interfaces:**
 - Consumes: `withRevitConnection` de `../utils/ConnectionManager.js`
@@ -755,7 +781,7 @@ registerGetParameterTool(server);
 - [ ] **Step 3: Compilar**
 
 ```powershell
-cd "C:\Users\jborrayo.DPB\BIM Tools\Revit-MCP\mcp-server"
+cd "C:\Users\jborrayo.DPB\BIM Tools\Revit-MCP\server"
 npm run build
 ```
 
@@ -771,7 +797,7 @@ Si falla: misma estrategia - identificar en qué capa falla (TypeScript vs C#) y
 - [ ] **Step 5: Commit**
 
 ```bash
-git add mcp-server/src/tools/get_parameter.ts mcp-server/src/tools/register.ts
+git add server/src/tools/get_parameter.ts
 git commit -m "feat(mcp): add get_parameter tool for reading element parameters"
 ```
 
@@ -779,109 +805,47 @@ git commit -m "feat(mcp): add get_parameter tool for reading element parameters"
 
 ## Task 6: Soporte Revit 2026
 
+> **Reescrito el 2026-09-01.** El plan original pedía duplicar el `.csproj` con `HintPath` a la API de Revit 2026 y armar a mano la carpeta de Addins. Nada de eso hace falta: ambos `.csproj` ya traen configuraciones `Debug R26` / `Release R26` que resuelven la API por NuGet y despliegan solas.
+
 **Files:**
-- Modifica: `revit-plugin/RevitMCPCommandSet/RevitMCPCommandSet.csproj` (agregar build target para 2026)
-- Crea: `C:\Users\jborrayo.DPB\AppData\Roaming\Autodesk\Revit\Addins\2026\revit_mcp_plugin\` (estructura completa)
+- Ninguno. No se modifica ni se crea ningún archivo del repo.
 
 **Interfaces:**
-- Produce: add-in instalado y funcional en Revit 2026 con todas las herramientas
+- Produce: add-in instalado y funcional en Revit 2026 con las 26 herramientas
 
-- [ ] **Step 1: Verificar diferencias entre APIs 2025 y 2026**
-
-```powershell
-# Comparar tamaños como indicador de cambios
-"RevitAPI 2025: $((Get-Item 'C:\Program Files\Autodesk\Revit 2025\RevitAPI.dll').Length) bytes"
-"RevitAPI 2026: $((Get-Item 'C:\Program Files\Autodesk\Revit 2026\RevitAPI.dll').Length) bytes"
-```
-
-- [ ] **Step 2: Crear una copia del proyecto apuntando a 2026**
-
-Duplicar el `.csproj` como `RevitMCPCommandSet.2026.csproj` y cambiar las referencias:
-
-```xml
-<!-- Cambiar -->
-<HintPath>C:\Program Files\Autodesk\Revit 2025\RevitAPI.dll</HintPath>
-<HintPath>C:\Program Files\Autodesk\Revit 2025\RevitAPIUI.dll</HintPath>
-<!-- Por -->
-<HintPath>C:\Program Files\Autodesk\Revit 2026\RevitAPI.dll</HintPath>
-<HintPath>C:\Program Files\Autodesk\Revit 2026\RevitAPIUI.dll</HintPath>
-```
-
-- [ ] **Step 3: Compilar para 2026**
+- [x] **Step 1: Compilar el plugin host para 2026**
 
 ```powershell
-$msb = "C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\MSBuild\Current\Bin\MSBuild.exe"
-& $msb "C:\Users\jborrayo.DPB\BIM Tools\Revit-MCP\revit-plugin\RevitMCPCommandSet\RevitMCPCommandSet.2026.csproj" /p:Configuration=Release /t:Build /p:OutputPath="bin\Release2026\"
+dotnet build plugin/RevitMCPPlugin.csproj -c "Debug R26"
 ```
 
-Si hay errores de compilación por cambios de API 2026: leer los errores, ajustar el código C# para compatibilidad, repetir.
+Esto compila `RevitMCPPlugin.dll` contra la API de Revit 2026 y copia el manifiesto `mcp-servers-for-revit.addin` más las DLLs del núcleo a `%AppData%\Autodesk\Revit\Addins\2026\`.
 
-- [ ] **Step 4: Crear la estructura de carpetas para 2026**
+- [x] **Step 2: Compilar el commandset para 2026**
 
 ```powershell
-$base = "C:\Users\jborrayo.DPB\AppData\Roaming\Autodesk\Revit\Addins\2026\revit_mcp_plugin"
-New-Item -ItemType Directory -Force "$base\Commands\RevitMCPCommandSet\2026"
-New-Item -ItemType Directory -Force "$base\Logs"
-
-# Copiar DLLs del núcleo (desde la instalación 2025)
-$src25 = "C:\Users\jborrayo.DPB\AppData\Roaming\Autodesk\Revit\Addins\2025\revit_mcp_plugin"
-Copy-Item "$src25\RevitMCPPlugin.dll" $base
-Copy-Item "$src25\RevitMCPSDK.dll" $base
-Copy-Item "$src25\Newtonsoft.Json.dll" $base
-Copy-Item "$src25\Microsoft.Windows.SDK.NET.dll" $base
-Copy-Item "$src25\WinRT.Runtime.dll" $base
-Copy-Item "$src25\Commands\commandRegistry.json" "$base\Commands\"
-Copy-Item "$src25\Commands\RevitMCPCommandSet\command.json" "$base\Commands\RevitMCPCommandSet\"
-
-# Copiar DLLs del CommandSet compilado para 2026
-$cmdSrc = "C:\Users\jborrayo.DPB\AppData\Roaming\Autodesk\Revit\Addins\2025\revit_mcp_plugin\Commands\RevitMCPCommandSet\2025"
-Copy-Item "$cmdSrc\*" "$base\Commands\RevitMCPCommandSet\2026\" -Recurse
-
-# Sobreescribir con el DLL compilado para 2026
-Copy-Item "C:\Users\jborrayo.DPB\BIM Tools\Revit-MCP\revit-plugin\RevitMCPCommandSet\bin\Release2026\RevitMCPCommandSet.dll" "$base\Commands\RevitMCPCommandSet\2026\"
+dotnet build commandset/RevitMCPCommandSet.csproj -c "Debug R26"
 ```
 
-- [ ] **Step 5: Crear el manifiesto del add-in para 2026**
+Esto copia las DLLs de comandos a `...\Addins\2026\revit_mcp_plugin\Commands\RevitMCPCommandSet\2026\` y el `command.json` a la carpeta padre.
 
-Crear `C:\Users\jborrayo.DPB\AppData\Roaming\Autodesk\Revit\Addins\2026\mcp-servers-for-revit.addin`:
+**Resultado:** ambos proyectos compilan para Revit 2026 con **0 errores**. No hubo ningún cambio de API entre 2025 y 2026 que afectara este código, así que el Step 8 del plan original (recompilar por incompatibilidades) resultó innecesario.
 
-```xml
-<?xml version="1.0" encoding="utf-8"?>
-<RevitAddIns>
-  <AddIn Type="Application">
-    <Name>mcp-servers-for-revit</Name>
-    <Assembly>revit_mcp_plugin/RevitMCPPlugin.dll</Assembly>
-    <AddInId>090a4c8c-61dc-426d-87df-e4bae0f80ec1</AddInId>
-    <FullClassName>revit_mcp_plugin.Core.Application</FullClassName>
-    <SuppressedWarning>GUIDConflict</SuppressedWarning>
-    <VendorId>mcp-servers-for-revit</VendorId>
-    <VendorDescription>https://github.com/mcp-servers-for-revit/mcp-servers-for-revit</VendorDescription>
-  </AddIn>
-</RevitAddIns>
-```
+- [x] **Step 3: Generar el commandRegistry.json de 2026**
 
-**Nota:** El GUID es el mismo que en 2025. Si Revit rechaza el GUID duplicado al tener ambas versiones abiertas simultáneamente, cambiar el último octeto del GUID (ej: `...0ec2`).
+Es el único archivo que ningún build despliega: `PathManager.GetCommandRegistryFilePath` lo crea vacío si no existe, y `CommandManager.LoadCommands` solo carga lo que esté listado ahí. Hay que generarlo desde `command.json` con `supportedRevitVersions: ["2026"]` en cada entrada, y con `assemblyPath` igual a `RevitMCPCommandSet\\{VERSION}\\RevitMCPCommandSet.dll`.
 
-- [ ] **Step 6: Actualizar commandRegistry.json de 2026**
+Destino: `%AppData%\Autodesk\Revit\Addins\2026\revit_mcp_plugin\Commands\commandRegistry.json`
 
-En `...\Addins\2026\revit_mcp_plugin\Commands\commandRegistry.json`, cambiar todos los `"supportedRevitVersions"` de `["2025"]` a `["2026"]`.
+- [ ] **Step 4: Verificar en Revit 2026**
 
-- [ ] **Step 7: Verificar en Revit 2026**
+Abrir Revit 2026, abrir un proyecto, activar el switch del add-in. En `Logs\mcp_YYYYMMDD.log` debe decir `Current Revit version: 2026` y cargar los 26 comandos.
 
-Abrir Revit 2026. Habilitar el switch del add-in. Verificar en el log (`Logs\mcp_YYYYMMDD.log`) que dice `Current Revit version: 2026` y que carga los comandos sin errores.
+**Nota sobre el GUID:** el manifiesto usa el mismo `ClientId` (`090A4C8C-...`) en 2025 y 2026. No es un conflicto: Revit resuelve los add-ins por versión y cada una lee su propia carpeta de Addins. Solo habría que cambiarlo si Revit rechazara la carga por GUID duplicado.
 
-Llamar `say_hello` desde Claude para confirmar la conexión.
+- [ ] **Step 5: Sin commit**
 
-- [ ] **Step 8: Loop si hay errores**
-
-Si `revit_mcp_plugin.Core.Application` falla al cargar en 2026 por cambios internos de Revit API: el `RevitMCPPlugin.dll` principal (que inicializa el WebSocket) quizás también necesita recompilación para 2026. En ese caso, compilar también el proyecto `RevitMCPPlugin` con referencias a Revit 2026 API.
-
-- [ ] **Step 9: Commit**
-
-```bash
-git add revit-plugin/RevitMCPCommandSet/RevitMCPCommandSet.2026.csproj
-git commit -m "feat(revit): add Revit 2026 build target and deployment structure"
-```
+Task 6 no toca archivos del repo, así que no genera commit.
 
 ---
 
@@ -939,3 +903,43 @@ Task 0 → Task 1 → Task 2 → Task 3 → Task 4 → Task 5 → Task 7 → Tas
 ```
 
 Task 6 (Revit 2026) puede ejecutarse de forma independiente después de que Task 3 esté completo.
+
+---
+
+## Desviaciones respecto al plan original
+
+Registro de lo que el plan original daba por hecho y lo que el repositorio realmente exige. Verificado el 2026-09-01 contra el commit `f7fdd74`.
+
+| # | El plan original decía | La realidad | Impacto |
+|---|---|---|---|
+| 1 | Target `net48` para todo | `net8.0-windows10.0.19041.0` en R25/R26; `net48` solo en R20-R24 | Alto |
+| 2 | Compilar con MSBuild 2019 BuildTools | Es SDK-style y apunta a .NET 8: MSBuild 2019 no puede. Se usa `dotnet build` | Alto |
+| 3 | Referenciar `RevitAPI.dll` por `HintPath` a `C:\Program Files\Autodesk\` | Todo viene por NuGet (`Nice3point.Revit.Api.*`, `RevitMCPSDK`) | Alto |
+| 4 | Crear `RevitMCPCommandSet.2026.csproj` para Revit 2026 | Ambos `.csproj` ya traen `Debug R26` / `Release R26`. Duplicar habría sido un error | Alto |
+| 5 | Implementar `IRevitCommand.Execute(JObject, Document)` | El patrón es `ExternalEventCommandBase` + `IExternalEventHandler` (dos clases por comando) | Alto |
+| 6 | Editar `register.ts` para registrar cada tool | `register.ts` auto-descubre los archivos de `tools/`. No se toca | Medio |
+| 7 | Copiar el DLL a mano a la carpeta de Addins | Las configuraciones `Debug *` auto-despliegan vía el target `DeployCommandSet` / `CopyFiles` | Medio |
+| 8 | Armar a mano la carpeta `Addins\2026\` y el `.addin` | El build `Debug R26` del plugin lo hace solo | Medio |
+| 9 | Verificar la carga leyendo `Failed to create command instance` en el log | Bug upstream: ese texto se loguea también en el caso de éxito. La verificación por log es inservible | Medio |
+| 10 | Estructura `mcp-server/` y `revit-plugin/RevitMCPCommandSet/` | Es `server/`, `plugin/` y `commandset/` | Bajo |
+| 11 | En `send_code_to_revit` el documento es `doc` | Es `document`, y en modo `auto` ya hay una `Transaction` abierta | Bajo |
+| 12 | `ModifyElementCommand.cs` es un stub a completar | No existía ningún archivo. `modify_element.ts` sí existía, vacío (0 bytes) | Bajo |
+| 13 | La comunicación es WebSocket | Es un socket TCP plano con JSON-RPC 2.0 | Bajo |
+
+### Decisiones tomadas durante la ejecución
+
+- **`set_parameter` sí se implementa.** El plan lo nombraba en el objetivo y en el mapa de archivos pero no tenía ningún task que lo construyera. Se implementó completo (C# + TS) con un alcance distinto al de `modify_element` para que no sea redundante: `set_parameter` escribe **un parámetro en muchos elementos**, `modify_element` escribe **muchos parámetros en un elemento**.
+- **`useDisplayUnits`.** El Task 1 Step 4 del plan pedía documentar el problema de unidades. La solución quedó en el código: por defecto los `Double` se escriben en unidades internas de Revit (pies), y con `useDisplayUnits: true` el valor se interpreta en las unidades del proyecto vía `SetValueString`. Sin esto, escribir "3000" pensando en milímetros produce un valor 3000 veces mayor al esperado.
+- **Rollback en fallo total.** Si ningún cambio de una llamada tuvo éxito, la transacción hace `RollBack()` en vez de `Commit()`, para no dejar pasos de deshacer vacíos en el historial de Revit.
+- **Errores por cambio, no por llamada.** Un parámetro inexistente o de solo lectura devuelve `status: "error"` en su propia entrada y no aborta el resto del lote.
+- **Convención de `ElementId`.** Se sigue el patrón del repo con `#if REVIT2024_OR_GREATER` para usar la API basada en `Int64` en 2024+ y la de `int` en versiones anteriores.
+
+### Hallazgos del prototipo (Task 1)
+
+Medidos sobre el muro `181178` de un proyecto real:
+
+- Las unidades internas de Revit son **pies**; las de display del proyecto eran **metros** (`AsDouble() = -0.0656` para un `AsValueString() = "-0.02"`).
+- `SetValueString("100")` interpreta unidades de proyecto y devuelve `bool` de éxito.
+- Los 4 `StorageType` aparecen en un solo muro: `String` (Comments, Mark), `Integer` (Structural, Cross-Section), `Double` (Top Offset, Base Offset), `ElementId` (Phase Created, Family and Type).
+- `LookupParameter` devuelve `null` si el parámetro no existe, y `IsReadOnly` detecta correctamente los calculados (`Volume`).
+- `get_Parameter(BuiltInParameter)` sirve de respaldo cuando el nombre viene localizado.

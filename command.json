@@ -122,6 +122,21 @@
       "commandName": "create_dimensions",
       "description": "Create dimension annotations between elements or points in the current view",
       "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
+      "commandName": "modify_element",
+      "description": "Modify one or more parameters of an existing element",
+      "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
+      "commandName": "get_parameter",
+      "description": "Read one or all parameters from an element",
+      "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
+      "commandName": "set_parameter",
+      "description": "Set a single parameter on one or more elements",
+      "assemblyPath": "RevitMCPCommandSet.dll"
     }
   ]
 }

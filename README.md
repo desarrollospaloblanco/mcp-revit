@@ -1,13 +1,47 @@
 [![Cover Image](./assets/cover.png?v=2)](https://github.com/mcp-servers-for-revit/mcp-servers-for-revit)
 
-# mcp-servers-for-revit
+# mcp-revit
 
 **Connect AI assistants to Autodesk Revit via the Model Context Protocol.**
 
-mcp-servers-for-revit enables AI clients like Claude, Cline, and other MCP-compatible tools to read, create, modify, and delete elements in Revit projects. It consists of three components: a TypeScript MCP server that exposes tools to AI, a C# Revit add-in that bridges commands into Revit, and a command set that implements the actual Revit API operations.
+mcp-revit enables AI clients like Claude, Cline, and other MCP-compatible tools to read, create, modify, and delete elements in Revit projects. It consists of three components: a TypeScript MCP server that exposes tools to AI, a C# Revit add-in that bridges commands into Revit, and a command set that implements the actual Revit API operations.
 
-> [!NOTE]
-> This is a fork of the original [revit-mcp](https://github.com/mcp-servers-for-revit/revit-mcp) project with additional tools and functionality improvements.
+## Provenance and license
+
+This repository is the Desarrollos Palo Blanco fork of
+[mcp-servers-for-revit](https://github.com/mcp-servers-for-revit/mcp-servers-for-revit),
+which is itself a fork of the original
+[revit-mcp](https://github.com/mcp-servers-for-revit/revit-mcp) project.
+
+It is distributed under the MIT license, and the upstream copyright notices are
+preserved verbatim in [LICENSE](./LICENSE). The fork was taken as a snapshot
+rather than a git clone, so the upstream commit history is not present here;
+this section is the record of where the code came from.
+
+### What this fork adds
+
+Three commands for reading and writing element parameters, so callers no longer
+need `send_code_to_revit` as a workaround for parameter work:
+
+| Tool | Scope |
+| --- | --- |
+| `get_parameter` | Read one parameter, or every parameter, from an element |
+| `modify_element` | Write many parameters on a single element |
+| `set_parameter` | Write one parameter across many elements |
+
+All three convert values by `StorageType` (String, Integer, Double, ElementId)
+and share a single transaction per call, so one undo reverts the whole
+operation. Double parameters default to Revit internal units (feet);
+`useDisplayUnits` routes them through `SetValueString` so callers can pass
+project units instead.
+
+They also attach an `IFailuresPreprocessor` to every writing transaction. Without
+one, a warning raised during `Commit` (for example a wall overlapping a room
+separation line) makes Revit show a modal dialog, which freezes the UI thread,
+which freezes the external event queue, which hangs every subsequent command
+until somebody clicks the dialog by hand. Warnings are recorded and dismissed so
+the call completes; errors roll the transaction back. Both are reported in the
+result rather than hidden.
 
 ## Architecture
 

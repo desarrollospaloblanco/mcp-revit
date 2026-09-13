@@ -25,7 +25,7 @@ El ciclo de desarrollo real es: prototipo con `send_code_to_revit` → implement
 - Logs del add-in: `%AppData%\Autodesk\Revit\Addins\<version>\revit_mcp_plugin\Logs\mcp_YYYYMMDD.log`
 - Registro de comandos: `command.json` (raíz del repo, fuente de verdad) y `commandRegistry.json` (por versión, en `Addins\<version>\revit_mcp_plugin\Commands\`)
 - Repositorio upstream: `https://github.com/mcp-servers-for-revit/mcp-servers-for-revit`
-- Directorio de trabajo: `C:\Users\jborrayo.DPB\BIM Tools\Revit-MCP\`
+- Directorio de trabajo: `%REPO%\`
 - No mezclar cambios no relacionados en un mismo commit
 - Verificar funcionamiento en Revit antes de marcar un task como completo
 
@@ -89,7 +89,7 @@ Referencia viva: `commandset/Commands/Delete/DeleteElementCommand.cs` + `command
 - [ ] **Step 1: Clonar el fork en el directorio de trabajo**
 
 ```powershell
-cd "C:\Users\jborrayo.DPB\BIM Tools\Revit-MCP"
+cd "%REPO%"
 git clone https://github.com/mcp-servers-for-revit/mcp-servers-for-revit .
 ```
 
@@ -112,7 +112,7 @@ Anotar la firma exacta de `IRevitCommand` - especialmente la firma del método `
 - [ ] **Step 4: Instalar dependencias del servidor TypeScript**
 
 ```powershell
-cd "C:\Users\jborrayo.DPB\BIM Tools\Revit-MCP\server"  # O la ruta real
+cd "%REPO%\server"
 npm install
 ```
 
@@ -127,7 +127,7 @@ Esperado: BUILD SUCCESSFUL sin errores. Si falla, leer error y corregir dependen
 - [ ] **Step 6: Verificar build inicial del add-in C#**
 
 ```powershell
-cd "C:\Users\jborrayo.DPB\BIM Tools\Revit-MCP"
+cd "%REPO%"
 dotnet build commandset/RevitMCPCommandSet.csproj -c "Debug R25"
 ```
 
@@ -143,7 +143,7 @@ Editar `~/.claude.json` - cambiar la entrada `mcp-server-for-revit`:
 "mcp-server-for-revit": {
   "type": "stdio",
   "command": "node",
-  "args": ["C:/Users/jborrayo.DPB/BIM Tools/Revit-MCP/server/build/index.js"],
+  "args": ["%REPO%/server/build/index.js"],
   "env": {}
 }
 ```
@@ -372,7 +372,7 @@ namespace RevitMCPCommandSet.Commands
 - [ ] **Step 3: Registrar el comando en commandRegistry.json**
 
 Agregar la entrada al final del array `Commands` en:
-`C:\Users\jborrayo.DPB\AppData\Roaming\Autodesk\Revit\Addins\2025\revit_mcp_plugin\Commands\commandRegistry.json`
+`%AppData%\Autodesk\Revit\Addins\2025\revit_mcp_plugin\Commands\commandRegistry.json`
 
 ```json
 {
@@ -395,7 +395,7 @@ Agregar la entrada al final del array `Commands` en:
 **Cerrar Revit primero.** Con Revit abierto el DLL está bloqueado y el despliegue falla.
 
 ```powershell
-cd "C:\Users\jborrayo.DPB\BIM Tools\Revit-MCP"
+cd "%REPO%"
 dotnet build commandset/RevitMCPCommandSet.csproj -c "Debug R25"
 ```
 
@@ -406,7 +406,7 @@ Esperado: `Build succeeded. 0 Error(s)`.
 No hay paso manual: el target `DeployCommandSet` del `.csproj` ya copió el DLL en el Step 4 porque la configuración es `Debug`. Confirmar la marca de tiempo:
 
 ```powershell
-$dst = "$env:AppData\Autodesk\Revit\Addins\2025\revit_mcp_plugin\Commands\RevitMCPCommandSet\2025\RevitMCPCommandSet.dll"
+$dst = "%AppData%\Autodesk\Revit\Addins\2025\revit_mcp_plugin\Commands\RevitMCPCommandSet\2025\RevitMCPCommandSet.dll"
 Write-Host "Deploy: $((Get-Item $dst).LastWriteTime)"
 ```
 
@@ -417,7 +417,7 @@ Cerrar Revit completamente. Abrir Revit 2025. Abrir un proyecto con elementos. A
 - [ ] **Step 7: Verificar que el comando cargó**
 
 ```powershell
-$log = Get-ChildItem "C:\Users\jborrayo.DPB\AppData\Roaming\Autodesk\Revit\Addins\2025\revit_mcp_plugin\Logs\" |
+$log = Get-ChildItem "%AppData%\Autodesk\Revit\Addins\2025\revit_mcp_plugin\Logs\" |
        Sort-Object LastWriteTime | Select-Object -Last 1
 Select-String "modify_element" $log.FullName
 ```
@@ -460,7 +460,7 @@ git commit -m "feat(revit): implement modify_element command with multi-type par
 - [ ] **Step 1: Leer el stub actual**
 
 ```powershell
-Get-Content "C:\Users\jborrayo.DPB\BIM Tools\Revit-MCP\server\src\tools\modify_element.ts"
+Get-Content "%REPO%\server\src\tools\modify_element.ts"
 ```
 
 Si es `export {};`, reemplazarlo completamente.
@@ -534,7 +534,7 @@ export function registerModifyElementTool(server: any) {
 - [ ] **Step 3: Verificar que el tool está en register.ts**
 
 ```powershell
-Select-String "modify_element" "C:\Users\jborrayo.DPB\BIM Tools\Revit-MCP\server\src\tools\register.ts"
+Select-String "modify_element" "%REPO%\server\src\tools\register.ts"
 ```
 
 Si no aparece, agregar el import y la llamada:
@@ -548,7 +548,7 @@ registerModifyElementTool(server);
 - [ ] **Step 4: Compilar el servidor TypeScript**
 
 ```powershell
-cd "C:\Users\jborrayo.DPB\BIM Tools\Revit-MCP\server"
+cd "%REPO%\server"
 npm run build
 ```
 
@@ -690,7 +690,7 @@ Agregar al array `Commands`:
 Con Revit cerrado, un solo comando compila y despliega:
 
 ```powershell
-cd "C:\Users\jborrayo.DPB\BIM Tools\Revit-MCP"
+cd "%REPO%"
 dotnet build commandset/RevitMCPCommandSet.csproj -c "Debug R25"
 ```
 
@@ -781,7 +781,7 @@ registerGetParameterTool(server);
 - [ ] **Step 3: Compilar**
 
 ```powershell
-cd "C:\Users\jborrayo.DPB\BIM Tools\Revit-MCP\server"
+cd "%REPO%\server"
 npm run build
 ```
 
@@ -884,7 +884,7 @@ Task 6 no toca archivos del repo, así que no genera commit.
 
 ```powershell
 # Leer el log del add-in para el error exacto
-$log = Get-ChildItem "C:\Users\jborrayo.DPB\AppData\Roaming\Autodesk\Revit\Addins\2025\revit_mcp_plugin\Logs\" |
+$log = Get-ChildItem "%AppData%\Autodesk\Revit\Addins\2025\revit_mcp_plugin\Logs\" |
        Sort-Object LastWriteTime | Select-Object -Last 1
 Get-Content $log.FullName | Select-String "Error|Exception|Failed|modify_element|get_parameter"
 ```

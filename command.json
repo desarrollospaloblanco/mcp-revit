@@ -122,6 +122,16 @@
       "commandName": "create_dimensions",
       "description": "Create dimension annotations between elements or points in the current view",
       "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
+      "commandName": "set_schedule_parameter_filter",
+      "description": "Add or update a parameter based filter on one or more schedules",
+      "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
+      "commandName": "duplicate_schedules_with_parameter",
+      "description": "Duplicate schedules for another parameter value, renaming and retargeting filter and view parameter",
+      "assemblyPath": "RevitMCPCommandSet.dll"
     }
   ]
 }

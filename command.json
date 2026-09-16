@@ -132,6 +132,11 @@
       "commandName": "duplicate_schedules_with_parameter",
       "description": "Duplicate schedules for another parameter value, renaming and retargeting filter and view parameter",
       "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
+      "commandName": "normalize_parameter_text",
+      "description": "Normalize the text case of a parameter across element types, instances and materials",
+      "assemblyPath": "RevitMCPCommandSet.dll"
     }
   ]
 }

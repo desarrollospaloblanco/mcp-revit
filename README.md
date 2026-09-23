@@ -43,6 +43,47 @@ until somebody clicks the dialog by hand. Warnings are recorded and dismissed so
 the call completes; errors roll the transaction back. Both are reported in the
 result rather than hidden.
 
+#### Quantification commands
+
+Seven commands for structural take-off, each one a workflow that previously had
+to be written by hand and pushed through `send_code_to_revit`:
+
+| Tool | Scope |
+| --- | --- |
+| `create_foundation_earthworks` | Excavation and backfill masses for foundations, as Toposolids (Revit 2024+) |
+| `assign_bim_level` | Write the level a slab or beam roofs, which is the one it is quantified under |
+| `classify_elements` | Assign Assembly Code by rule and derive a missing Type Mark from the type name |
+| `analyze_clashes` | Find structure that overlaps without being joined, and colour it |
+| `copy_ramps_as_floors` | Replicate ramps as sloped floors so they land in a slab take-off |
+| `create_grid_railings` | Trace the grid with railings so the setting-out run can be measured |
+| `format_schedules` | Rename schedule headings and apply one consistent look |
+
+They share three habits worth calling out, because each one exists to stop a
+silent, expensive mistake:
+
+**They target a document by title, never the active one.** `documentTitle` is
+resolved against `Application.Documents`. A command that reads
+`ActiveUIDocument` can commit its edits to whichever model the user happened to
+switch to while the call was queued, and nothing in the result would say so.
+
+**They measure geometry with solid booleans, not `ReferenceIntersector`.** Ray
+casting only sees what is visible in the view it is handed, so the same question
+gets different answers after someone moves a section box. Booleans are
+reproducible, and with a bounding-box prefilter they are also far faster.
+
+**They attach the same `IFailuresPreprocessor` as the parameter commands**, so a
+warning during `Commit` never leaves Revit sitting on a modal dialog with nobody
+there to click it.
+
+Two details inside `create_foundation_earthworks` are the difference between a
+plausible number and a correct one. The excavation ceiling is the higher of the
+element's own top and the underside of the first slab above its *bottom*:
+searching upwards from the top instead skips a slab-on-grade that is flush with
+the element, and a 0.60 m tie beam then excavates 3.68 m up to the next storey.
+And every downward face at the bottom is used, not just the largest, because
+Revit splits the underside of a long beam where footings cross it — taking the
+biggest face alone dropped two thirds of one beam's footprint.
+
 ## Architecture
 
 ```mermaid
@@ -173,6 +214,16 @@ If using a release ZIP, the command set is pre-installed inside the plugin. For 
 | `query_stored_data` | Query stored project and room data |
 | `send_code_to_revit` | Send C# code to Revit to execute |
 | `say_hello` | Display a greeting dialog in Revit (connection test) |
+| `get_parameter` | Read one parameter, or every parameter, from an element |
+| `modify_element` | Write many parameters on a single element |
+| `set_parameter` | Write one parameter across many elements |
+| `create_foundation_earthworks` | Build excavation and backfill masses for foundations (Revit 2024+) |
+| `assign_bim_level` | Write the quantification level onto slabs and beams |
+| `classify_elements` | Assign Assembly Code and derive a missing Type Mark |
+| `analyze_clashes` | Find unjoined overlapping structure and colour it |
+| `copy_ramps_as_floors` | Replicate ramps as sloped floors |
+| `create_grid_railings` | Trace the grid with railings to measure the setting-out run |
+| `format_schedules` | Rename schedule headings and apply a consistent look |
 
 ## Testing
 

@@ -90,7 +90,11 @@ export class RevitClientConnection {
     }
   }
 
-  public sendCommand(command: string, params: any = {}): Promise<any> {
+  public sendCommand(
+    command: string,
+    params: any = {},
+    timeoutMs: number = 120000
+  ): Promise<any> {
     return new Promise((resolve, reject) => {
       try {
         if (!this.isConnected) {
@@ -108,8 +112,13 @@ export class RevitClientConnection {
           id: requestId,
         };
 
+        let timer: NodeJS.Timeout | undefined;
+
         // 存储回调函数
         this.responseCallbacks.set(requestId, (responseData) => {
+          // A pending timer keeps the event loop alive, so a short-lived caller would not
+          // exit until it fired, however fast Revit answered.
+          clearTimeout(timer);
           try {
             const response = JSON.parse(responseData);
             if (response.error) {
@@ -133,12 +142,16 @@ export class RevitClientConnection {
         this.socket.write(commandString);
 
         // 设置超时
-        setTimeout(() => {
+        timer = setTimeout(() => {
           if (this.responseCallbacks.has(requestId)) {
             this.responseCallbacks.delete(requestId);
-            reject(new Error(`Command timed out after 2 minutes: ${command}`));
+            reject(
+              new Error(
+                `Command timed out after ${Math.round(timeoutMs / 1000)} s: ${command}`
+              )
+            );
           }
-        }, 120000); // 2分钟超时
+        }, timeoutMs);
       } catch (error) {
         reject(error);
       }

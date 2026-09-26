@@ -84,6 +84,34 @@ And every downward face at the bottom is used, not just the largest, because
 Revit splits the underside of a long beam where footings cross it — taking the
 biggest face alone dropped two thirds of one beam's footprint.
 
+#### Modelling commands
+
+Two commands for building a schematic-design model from data rather than
+element by element:
+
+| Tool | Scope |
+| --- | --- |
+| `build_model_from_spec` | Build levels, grids, columns, walls, beams and floors from a spec in metres |
+| `export_view_image` | Export a floor plan, a named view or the 3D view to PNG for checking |
+
+`build_model_from_spec` takes the building as JSON, inline or from a file
+(`specPath`), and builds it in dependency order, one transaction per stage, the
+whole run as one undo step. Every element is stamped with its spec id in
+extensible storage — not in Comments or Mark, which teams already fill in — so
+sending a corrected spec updates what changed, skips what did not and never
+duplicates. `dryRun` builds everything against the real document, reports, and
+rolls it all back.
+
+A typical floor is written once: `repeatOn` lists the levels it repeats on, and
+a relative level such as `"topLevel": "+1"` means the next spec level above the
+element's base. Types missing from the document are created from `types.*` by
+duplicating a base type; a type the spec did not create is never modified,
+because it may be in use elsewhere in the model.
+
+An element Revit refuses is deleted and reported by its spec id instead of
+rolling back its whole stage, and warnings are dismissed and reported, so a
+build never stops on a modal dialog.
+
 ## Architecture
 
 ```mermaid
@@ -224,6 +252,8 @@ If using a release ZIP, the command set is pre-installed inside the plugin. For 
 | `copy_ramps_as_floors` | Replicate ramps as sloped floors |
 | `create_grid_railings` | Trace the grid with railings to measure the setting-out run |
 | `format_schedules` | Rename schedule headings and apply a consistent look |
+| `build_model_from_spec` | Build levels, grids, columns, walls, beams and floors from a spec |
+| `export_view_image` | Export a view to PNG for visual checking |
 
 ## Testing
 

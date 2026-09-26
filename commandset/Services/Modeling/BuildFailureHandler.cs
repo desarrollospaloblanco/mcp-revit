@@ -23,6 +23,9 @@ namespace RevitMCPCommandSet.Services.Modeling
 
         public bool RolledBack { get; private set; }
 
+        /// <summary>Errors Revit let us resolve some other way (for example by unjoining elements).</summary>
+        public List<string> Resolved { get; } = new List<string>();
+
         public FailureProcessingResult PreprocessFailures(FailuresAccessor failuresAccessor)
         {
             bool resolved = false;
@@ -45,6 +48,18 @@ namespace RevitMCPCommandSet.Services.Modeling
                     foreach (ElementId id in message.GetFailingElementIds())
                         Deleted[id] = text;
                     message.SetCurrentResolutionType(FailureResolutionType.DeleteElements);
+                    failuresAccessor.ResolveFailure(message);
+                    resolved = true;
+                    continue;
+                }
+
+                // An error that Revit knows how to resolve otherwise ("Can't keep elements joined"
+                // resolves by unjoining) takes that resolution rather than rolling back the stage:
+                // one conflicting join must not undo thousands of walls.
+                if (message.HasResolutions())
+                {
+                    if (!Resolved.Contains(text))
+                        Resolved.Add(text);
                     failuresAccessor.ResolveFailure(message);
                     resolved = true;
                     continue;

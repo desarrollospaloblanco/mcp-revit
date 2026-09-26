@@ -35,6 +35,7 @@ namespace RevitMCPCommandSet.Services.Modeling
         private ModelSpec _spec;
 
         private Dictionary<string, Element> _tagged;
+        private bool _anyStageRolledBack;
         private readonly Dictionary<string, Level> _levels = new Dictionary<string, Level>(StringComparer.Ordinal);
         private List<string> _levelOrder = new List<string>();
         private readonly Dictionary<string, string> _levelIdByName = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -149,7 +150,10 @@ namespace RevitMCPCommandSet.Services.Modeling
             }
 
             _report.Warn(failures.Warnings);
+            _report.Warn(failures.Resolved.Select(r => "resolved by Revit: " + r));
             bool rolledBack = status != TransactionStatus.Committed || failures.RolledBack;
+            if (rolledBack)
+                _anyStageRolledBack = true;
             string errors = failures.Errors.Count == 0 ? "" : ": " + string.Join(" / ", failures.Errors);
 
             foreach (Pending item in pending)
@@ -808,8 +812,8 @@ namespace RevitMCPCommandSet.Services.Modeling
 
                 XYZ facing = spec.Facing != null && spec.Facing.Length >= 2 ? new XYZ(spec.Facing[0], spec.Facing[1], 0) : null;
                 XYZ hand = spec.Hand != null && spec.Hand.Length >= 2 ? new XYZ(spec.Hand[0], spec.Hand[1], 0) : null;
-                if (facing != null || hand != null)
-                    orientation.Add(Tuple.Create(opening.Id, facing, hand));
+                // Every opening goes through Orient: besides flipping, it forces the host cut.
+                orientation.Add(Tuple.Create(opening.Id, facing, hand));
 
                 Stamp(opening, entry.Key, entry.Signature);
                 pending.Add(new Pending { Kind = kind, Key = entry.Key, Id = opening.Id, Action = action });
@@ -822,14 +826,20 @@ namespace RevitMCPCommandSet.Services.Modeling
         }
 
         /// <summary>
-        /// Flips openings to face and hand the way the spec asks. Orientation is only known after
-        /// a regeneration, so it is done once for the whole stage rather than once per door.
+        /// Flips openings to face and hand the way the spec asks, then makes sure each one cuts its
+        /// host. Orientation is only known after a regeneration, so it is done once for the stage.
+        ///
+        /// Openings created in bulk in one transaction were found hosted but not cutting: the wall
+        /// kept its full volume and did not list them as inserts. Nudging each opening's sill by a
+        /// millimetre and back makes Revit recompute the cut. Any opening still not cut afterwards
+        /// is reported instead of left silently solid.
         /// </summary>
         private void Orient(List<Tuple<ElementId, XYZ, XYZ>> orientation)
         {
             if (orientation.Count == 0)
                 return;
             _doc.Regenerate();
+            var sills = new List<Tuple<Parameter, double>>();
             foreach (var item in orientation)
             {
                 var opening = _doc.GetElement(item.Item1) as FamilyInstance;
@@ -839,7 +849,30 @@ namespace RevitMCPCommandSet.Services.Modeling
                     opening.flipFacing();
                 if (item.Item3 != null && opening.CanFlipHand && opening.HandOrientation.DotProduct(item.Item3) < 0)
                     opening.flipHand();
+                Parameter sill = opening.get_Parameter(BuiltInParameter.INSTANCE_SILL_HEIGHT_PARAM);
+                if (sill != null && !sill.IsReadOnly)
+                {
+                    double value = sill.AsDouble();
+                    sill.Set(value + 0.001 * FeetPerMetre);
+                    sills.Add(Tuple.Create(sill, value));
+                }
             }
+            _doc.Regenerate();
+            foreach (var item in sills)
+                item.Item1.Set(item.Item2);
+            _doc.Regenerate();
+
+            var uncut = new List<string>();
+            foreach (var item in orientation)
+            {
+                var opening = _doc.GetElement(item.Item1) as FamilyInstance;
+                var host = opening?.Host as Wall;
+                if (host != null && !host.FindInserts(true, false, false, false).Contains(opening.Id))
+                    uncut.Add(SpecTagStorage.Read(opening)?.Key ?? opening.Id.ToString());
+            }
+            if (uncut.Count > 0)
+                _report.Notes.Add(uncut.Count + " opening(s) do not cut their host wall: " +
+                                  string.Join(", ", uncut.Take(20)) + (uncut.Count > 20 ? " ..." : ""));
         }
 
         private void HandleOrphans(HashSet<string> specKeys, ICollection<string> stages, bool deleteMissing)
@@ -862,8 +895,12 @@ namespace RevitMCPCommandSet.Services.Modeling
             if (orphans.Count == 0)
                 return;
 
-            if (!deleteMissing)
+            // After a stage rolled back, what looks orphaned may be exactly what that stage failed
+            // to replace; deleting it would leave the model with neither version.
+            if (!deleteMissing || _anyStageRolledBack)
             {
+                if (deleteMissing)
+                    _report.Notes.Add("Orphans were not deleted because a stage rolled back.");
                 foreach (var orphan in orphans)
                     _report.Orphans.Add(orphan.Key);
                 return;

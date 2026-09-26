@@ -32,6 +32,25 @@ const sectionType = z.object({
   architectural: z.boolean().optional().describe("Columns only: architectural instead of structural"),
 });
 
+const openingType = z.object({
+  name: z.string(),
+  family: z.string().optional().describe("Loaded family to duplicate from; required when the type does not exist"),
+  width: z.number().describe("Metres"),
+  height: z.number().describe("Metres"),
+});
+
+const opening = z.object({
+  ...placed,
+  hostWall: z
+    .string()
+    .describe("Spec id of the host wall. Copies made by repeatOn host in '<hostWall>@<level>'."),
+  at: xy.describe("Centre of the opening in plan; projected onto the host wall"),
+  level: z.string().optional().describe("Defaults to the host wall's base level"),
+  sill: z.number().optional().describe("Sill height above the level, metres. 0 for doors."),
+  facing: xy.optional().describe("Plan direction the opening should face (a door's swing side)"),
+  hand: xy.optional().describe("Plan direction from hinge towards latch"),
+});
+
 const specSchema = z.object({
   levels: z
     .array(
@@ -60,6 +79,8 @@ const specSchema = z.object({
       floors: z.array(layeredType).optional(),
       columns: z.array(sectionType).optional(),
       beams: z.array(sectionType).optional(),
+      doors: z.array(openingType).optional(),
+      windows: z.array(openingType).optional(),
     })
     .optional(),
   columns: z
@@ -104,6 +125,7 @@ const specSchema = z.object({
         mid: xy.optional(),
         level: z.string(),
         offset: z.number().optional().describe("Top of beam relative to the level, metres. 0 is flush."),
+        endOffset: z.number().optional().describe("Top of beam at its end, for a sloped beam following a ramp"),
       })
     )
     .optional(),
@@ -123,13 +145,15 @@ const specSchema = z.object({
       })
     )
     .optional(),
+  doors: z.array(opening).optional(),
+  windows: z.array(opening).optional().describe("Windows, and sliding doors that are window families"),
 });
 
 export function registerBuildModelFromSpecTool(server: McpServer) {
   server.tool(
     "build_model_from_spec",
-    "Build a model from a spec in metres: levels (with floor plans), grids, columns, walls, beams and " +
-      "floors, in that order, each stage in its own transaction and the whole build as one undo step. " +
+    "Build a model from a spec in metres: levels (with floor plans), grids, columns, walls, doors and " +
+      "windows, beams and floors, in that order, each stage in its own transaction and the whole build as one undo step. " +
       "Idempotent: every element is stamped with its spec id, so re-sending a corrected spec updates " +
       "what changed, skips what did not, and never duplicates. Types missing from the document are " +
       "created from types.* by duplicating a base type; existing types the spec did not create are " +
@@ -145,7 +169,7 @@ export function registerBuildModelFromSpecTool(server: McpServer) {
         .describe("Name that scopes the stamps, so two specs in one model never touch each other. Defaults to 'spec'."),
       documentTitle: z.string().optional().describe("Exact title of the open document to build into. Omit for the active one."),
       stages: z
-        .array(z.enum(["levels", "grids", "columns", "walls", "beams", "floors"]))
+        .array(z.enum(["levels", "grids", "columns", "walls", "openings", "beams", "floors"]))
         .optional()
         .describe("Only run these stages. Defaults to all."),
       dryRun: z.boolean().optional().describe("Build everything, report, then roll it all back."),

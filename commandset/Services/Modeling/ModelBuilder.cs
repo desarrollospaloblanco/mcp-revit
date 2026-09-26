@@ -23,7 +23,7 @@ namespace RevitMCPCommandSet.Services.Modeling
     /// </summary>
     public class ModelBuilder
     {
-        public static readonly string[] AllStages = { "levels", "grids", "columns", "walls", "beams", "floors" };
+        public static readonly string[] AllStages = { "levels", "grids", "columns", "walls", "openings", "beams", "floors" };
 
         private const double FeetPerMetre = 1.0 / 0.3048;
         private const double SameTolerance = 0.001 * FeetPerMetre;
@@ -76,6 +76,9 @@ namespace RevitMCPCommandSet.Services.Modeling
                 w => w.TopLevel = ResolveRelative(w.TopLevel, w.BaseLevel));
             var beams = Expand("beam", spec.Beams, b => b.Level, (b, l) => b.Level = l, b => { });
             var floors = Expand("floor", spec.Floors, f => f.Level, (f, l) => f.Level = l, f => { });
+            // A copy of an opening lives in the copy of its host wall on the same level.
+            var doors = Expand("door", spec.Doors, o => o.Level, (o, l) => { o.Level = l; o.HostWall = o.HostWall + "@" + l; }, o => { });
+            var windows = Expand("window", spec.Windows, o => o.Level, (o, l) => { o.Level = l; o.HostWall = o.HostWall + "@" + l; }, o => { });
 
             if (stages.Contains("levels"))
                 RunStage("levels", BuildLevels);
@@ -87,6 +90,14 @@ namespace RevitMCPCommandSet.Services.Modeling
                 RunStage("columns", pending => { foreach (var e in columns) BuildColumn(e, pending); });
             if (stages.Contains("walls"))
                 RunStage("walls", pending => { foreach (var e in walls) BuildWall(e, pending); });
+            if (stages.Contains("openings"))
+                RunStage("openings", pending =>
+                {
+                    var orientation = new List<Tuple<ElementId, XYZ, XYZ>>();
+                    foreach (var e in doors) BuildOpening(e, "door", pending, orientation);
+                    foreach (var e in windows) BuildOpening(e, "window", pending, orientation);
+                    Orient(orientation);
+                });
             if (stages.Contains("beams"))
                 RunStage("beams", pending => { foreach (var e in beams) BuildBeam(e, pending); });
             if (stages.Contains("floors"))
@@ -99,6 +110,8 @@ namespace RevitMCPCommandSet.Services.Modeling
             foreach (var e in walls) specKeys.Add(e.Key);
             foreach (var e in beams) specKeys.Add(e.Key);
             foreach (var e in floors) specKeys.Add(e.Key);
+            foreach (var e in doors) specKeys.Add(e.Key);
+            foreach (var e in windows) specKeys.Add(e.Key);
 
             HandleOrphans(specKeys, stages, deleteMissing);
 
@@ -591,6 +604,17 @@ namespace RevitMCPCommandSet.Services.Modeling
                 Level level = symbol == null ? null : ResolveLevel(spec.Level, "level", out error);
                 Curve curve = level == null ? null
                     : MakeCurve(spec.Start, spec.End, spec.Mid, level.Elevation + spec.Offset * FeetPerMetre, out error);
+                if (curve != null && spec.EndOffset.HasValue)
+                {
+                    // A sloped beam follows a ramp: its top runs from offset at the start to endOffset at the end.
+                    if (!(curve is Line))
+                    {
+                        _report.Fail("beam", entry.Key, "endOffset is only supported on straight beams");
+                        return;
+                    }
+                    XYZ a = curve.GetEndPoint(0), b = curve.GetEndPoint(1);
+                    curve = Line.CreateBound(a, new XYZ(b.X, b.Y, level.Elevation + spec.EndOffset.Value * FeetPerMetre));
+                }
                 if (curve == null)
                 {
                     _report.Fail("beam", entry.Key, error);
@@ -723,12 +747,108 @@ namespace RevitMCPCommandSet.Services.Modeling
             }
         }
 
+        private void BuildOpening(Entry<OpeningSpec> entry, string kind, List<Pending> pending,
+            List<Tuple<ElementId, XYZ, XYZ>> orientation)
+        {
+            OpeningSpec spec = entry.Spec;
+            ElementId created = null;
+            try
+            {
+                FamilyInstance existing = Tagged<FamilyInstance>(entry.Key);
+                if (existing != null && SignatureOf(existing) == entry.Signature)
+                {
+                    _report.For(kind).Unchanged++;
+                    return;
+                }
+
+                string error;
+                FamilySymbol symbol = kind == "door" ? _types.Door(spec.Type, out error) : _types.Window(spec.Type, out error);
+                if (symbol == null)
+                {
+                    _report.Fail(kind, entry.Key, error);
+                    return;
+                }
+
+                Wall host = Tagged<Wall>("wall:" + spec.HostWall);
+                if (host == null)
+                {
+                    _report.Fail(kind, entry.Key, "host wall " + spec.HostWall + " was not built from this spec");
+                    return;
+                }
+
+                Level level = string.IsNullOrWhiteSpace(spec.Level)
+                    ? _doc.GetElement(host.LevelId) as Level
+                    : ResolveLevel(spec.Level, "level", out error);
+                XYZ at = level == null ? null : MakePoint(spec.At, 0, "at", out error);
+                if (at == null)
+                {
+                    _report.Fail(kind, entry.Key, error ?? "the host wall has no level");
+                    return;
+                }
+
+                // Project onto the wall's location line, so a point read off a drawing a few
+                // centimetres to one side still lands inside the wall.
+                Curve line = ((LocationCurve)host.Location).Curve;
+                XYZ onWall = line.Project(new XYZ(at.X, at.Y, line.GetEndPoint(0).Z)).XYZPoint;
+                XYZ point = new XYZ(onWall.X, onWall.Y, level.Elevation + spec.Sill * FeetPerMetre);
+
+                string action = existing == null ? "created" : "updated";
+                if (existing != null)
+                {
+                    _doc.Delete(existing.Id);
+                    _tagged.Remove(entry.Key);
+                }
+
+                if (!symbol.IsActive)
+                    symbol.Activate();
+
+                FamilyInstance opening = _doc.Create.NewFamilyInstance(point, symbol, host, level, StructuralType.NonStructural);
+                created = opening.Id;
+                SetDouble(opening, BuiltInParameter.INSTANCE_SILL_HEIGHT_PARAM, spec.Sill * FeetPerMetre);
+
+                XYZ facing = spec.Facing != null && spec.Facing.Length >= 2 ? new XYZ(spec.Facing[0], spec.Facing[1], 0) : null;
+                XYZ hand = spec.Hand != null && spec.Hand.Length >= 2 ? new XYZ(spec.Hand[0], spec.Hand[1], 0) : null;
+                if (facing != null || hand != null)
+                    orientation.Add(Tuple.Create(opening.Id, facing, hand));
+
+                Stamp(opening, entry.Key, entry.Signature);
+                pending.Add(new Pending { Kind = kind, Key = entry.Key, Id = opening.Id, Action = action });
+            }
+            catch (Exception ex)
+            {
+                DeleteHalfBuilt(created);
+                _report.Fail(kind, entry.Key, ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// Flips openings to face and hand the way the spec asks. Orientation is only known after
+        /// a regeneration, so it is done once for the whole stage rather than once per door.
+        /// </summary>
+        private void Orient(List<Tuple<ElementId, XYZ, XYZ>> orientation)
+        {
+            if (orientation.Count == 0)
+                return;
+            _doc.Regenerate();
+            foreach (var item in orientation)
+            {
+                var opening = _doc.GetElement(item.Item1) as FamilyInstance;
+                if (opening == null)
+                    continue;
+                if (item.Item2 != null && opening.CanFlipFacing && opening.FacingOrientation.DotProduct(item.Item2) < 0)
+                    opening.flipFacing();
+                if (item.Item3 != null && opening.CanFlipHand && opening.HandOrientation.DotProduct(item.Item3) < 0)
+                    opening.flipHand();
+            }
+        }
+
         private void HandleOrphans(HashSet<string> specKeys, ICollection<string> stages, bool deleteMissing)
         {
             var kindsInStages = new Dictionary<string, string>
             {
                 { "level", "levels" }, { "grid", "grids" }, { "column", "columns" },
-                { "wall", "walls" }, { "beam", "beams" }, { "floor", "floors" }
+                { "wall", "walls" }, { "beam", "beams" }, { "floor", "floors" },
+                { "door", "openings" }, { "window", "openings" }
             };
 
             var orphans = new List<KeyValuePair<string, Element>>();

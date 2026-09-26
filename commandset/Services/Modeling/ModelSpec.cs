@@ -26,6 +26,8 @@ namespace RevitMCPCommandSet.Services.Modeling
         [JsonProperty("walls")] public List<WallSpec> Walls { get; set; } = new List<WallSpec>();
         [JsonProperty("beams")] public List<BeamSpec> Beams { get; set; } = new List<BeamSpec>();
         [JsonProperty("floors")] public List<FloorSpec> Floors { get; set; } = new List<FloorSpec>();
+        [JsonProperty("doors")] public List<OpeningSpec> Doors { get; set; } = new List<OpeningSpec>();
+        [JsonProperty("windows")] public List<OpeningSpec> Windows { get; set; } = new List<OpeningSpec>();
     }
 
     public class LevelSpec
@@ -53,6 +55,18 @@ namespace RevitMCPCommandSet.Services.Modeling
         [JsonProperty("floors")] public List<LayeredTypeSpec> Floors { get; set; } = new List<LayeredTypeSpec>();
         [JsonProperty("columns")] public List<SectionTypeSpec> Columns { get; set; } = new List<SectionTypeSpec>();
         [JsonProperty("beams")] public List<SectionTypeSpec> Beams { get; set; } = new List<SectionTypeSpec>();
+        [JsonProperty("doors")] public List<OpeningTypeSpec> Doors { get; set; } = new List<OpeningTypeSpec>();
+        [JsonProperty("windows")] public List<OpeningTypeSpec> Windows { get; set; } = new List<OpeningTypeSpec>();
+    }
+
+    /// <summary>A door or window type defined by its size, duplicated from a loaded family.</summary>
+    public class OpeningTypeSpec
+    {
+        [JsonProperty("name")] public string Name { get; set; }
+        /// <summary>Loaded family to duplicate from. Required when the type does not exist yet.</summary>
+        [JsonProperty("family")] public string Family { get; set; }
+        [JsonProperty("width")] public double Width { get; set; }
+        [JsonProperty("height")] public double Height { get; set; }
     }
 
     /// <summary>A wall or floor type defined by its total thickness.</summary>
@@ -136,6 +150,8 @@ namespace RevitMCPCommandSet.Services.Modeling
         [JsonProperty("level")] public string Level { get; set; }
         /// <summary>Top of the beam relative to the level. 0 puts it flush with the level.</summary>
         [JsonProperty("offset")] public double Offset { get; set; }
+        /// <summary>Top of the beam at its end, for a sloped beam. Defaults to offset.</summary>
+        [JsonProperty("endOffset")] public double? EndOffset { get; set; }
     }
 
     public class FloorSpec : PlacedSpec
@@ -150,6 +166,26 @@ namespace RevitMCPCommandSet.Services.Modeling
         [JsonProperty("structural")] public bool Structural { get; set; } = true;
         /// <summary>Optional slope arrow for a ramp; the slab is at level + offset at its tail.</summary>
         [JsonProperty("slopeArrow")] public SlopeArrowSpec SlopeArrow { get; set; }
+    }
+
+    /// <summary>A door or window hosted in a wall built from the same spec.</summary>
+    public class OpeningSpec : PlacedSpec
+    {
+        /// <summary>
+        /// Spec id of the host wall. Copies made by repeatOn host in the wall copy on their own
+        /// level, "&lt;hostWall&gt;@&lt;level&gt;", so a typical floor's openings follow its walls.
+        /// </summary>
+        [JsonProperty("hostWall")] public string HostWall { get; set; }
+        /// <summary>Plan position of the opening's centre; it is projected onto the wall.</summary>
+        [JsonProperty("at")] public double[] At { get; set; }
+        /// <summary>Level the opening belongs to. Defaults to the host wall's base level.</summary>
+        [JsonProperty("level")] public string Level { get; set; }
+        /// <summary>Sill height above the level, in metres. 0 for doors.</summary>
+        [JsonProperty("sill")] public double Sill { get; set; }
+        /// <summary>Plan direction the opening should face (a door's swing side). Flipped to match.</summary>
+        [JsonProperty("facing")] public double[] Facing { get; set; }
+        /// <summary>Plan direction of the hand (hinge towards latch). Flipped to match.</summary>
+        [JsonProperty("hand")] public double[] Hand { get; set; }
     }
 
     public class SlopeArrowSpec

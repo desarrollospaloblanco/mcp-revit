@@ -62,6 +62,102 @@ namespace RevitMCPCommandSet.Services.Modeling
             return ResolveSection("beamType", name, def, BuiltInCategory.OST_StructuralFraming, out error);
         }
 
+        public FamilySymbol Door(string name, out string error)
+        {
+            OpeningTypeSpec def = _spec.Doors.FirstOrDefault(t => t.Name == name);
+            return ResolveOpening("doorType", name, def, BuiltInCategory.OST_Doors,
+                BuiltInParameter.DOOR_WIDTH, BuiltInParameter.DOOR_HEIGHT, out error);
+        }
+
+        /// <summary>
+        /// A window type. Sliding balcony doors are often window families (they sit in the
+        /// facade with the windows), so they resolve here as well.
+        /// </summary>
+        public FamilySymbol Window(string name, out string error)
+        {
+            OpeningTypeSpec def = _spec.Windows.FirstOrDefault(t => t.Name == name);
+            return ResolveOpening("windowType", name, def, BuiltInCategory.OST_Windows,
+                BuiltInParameter.WINDOW_WIDTH, BuiltInParameter.WINDOW_HEIGHT, out error);
+        }
+
+        private static readonly string[] OpeningWidthNames = { "Width", "Anchura", "Ancho" };
+        private static readonly string[] OpeningHeightNames = { "Height", "Altura", "Alto" };
+
+        private FamilySymbol ResolveOpening(string kind, string name, OpeningTypeSpec def, BuiltInCategory category,
+            BuiltInParameter widthId, BuiltInParameter heightId, out string error)
+        {
+            error = null;
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                error = "no type given";
+                return null;
+            }
+
+            string key = kind + ":" + name;
+            if (_cache.TryGetValue(key, out Element cached))
+                return (FamilySymbol)cached;
+
+            List<FamilySymbol> symbols = new FilteredElementCollector(_doc)
+                .OfClass(typeof(FamilySymbol)).OfCategory(category).Cast<FamilySymbol>().ToList();
+
+            FamilySymbol existing = symbols.FirstOrDefault(s => s.Name == name &&
+                (def == null || string.IsNullOrWhiteSpace(def.Family) || s.FamilyName == def.Family));
+            if (existing != null)
+            {
+                if (def != null && IsOurs(existing))
+                    SetOpeningSize(existing, def, widthId, heightId);
+                _cache[key] = existing;
+                return existing;
+            }
+
+            if (def == null || def.Width <= 0 || def.Height <= 0 || string.IsNullOrWhiteSpace(def.Family))
+            {
+                error = "type '" + name + "' does not exist and is not defined with family, width and height under types";
+                return null;
+            }
+
+            FamilySymbol template = symbols.FirstOrDefault(s => s.FamilyName == def.Family);
+            if (template == null)
+            {
+                error = "no loaded " + category.ToString().Replace("OST_", "") + " family is named '" + def.Family +
+                        "'. Loaded: " + string.Join(", ", symbols.Select(s => s.FamilyName).Distinct());
+                return null;
+            }
+
+            var created = (FamilySymbol)template.Duplicate(name);
+            try
+            {
+                if (!SetOpeningSize(created, def, widthId, heightId))
+                    throw new InvalidOperationException("family '" + def.Family + "' has no editable width and height type parameters");
+                SpecTagStorage.Write(created, Stamp(key, def));
+            }
+            catch
+            {
+                _doc.Delete(created.Id);
+                throw;
+            }
+            _report.TypesCreated.Add(name + " (from " + template.FamilyName + ": " + template.Name + ")");
+
+            _cache[key] = created;
+            return created;
+        }
+
+        private static bool SetOpeningSize(FamilySymbol symbol, OpeningTypeSpec def, BuiltInParameter widthId, BuiltInParameter heightId)
+        {
+            Parameter width = Writable(symbol.get_Parameter(widthId)) ?? FindLengthParameter(symbol, null, OpeningWidthNames);
+            Parameter height = Writable(symbol.get_Parameter(heightId)) ?? FindLengthParameter(symbol, null, OpeningHeightNames);
+            if (width == null || height == null)
+                return false;
+            width.Set(def.Width * FeetPerMetre);
+            height.Set(def.Height * FeetPerMetre);
+            return true;
+        }
+
+        private static Parameter Writable(Parameter parameter)
+        {
+            return parameter != null && !parameter.IsReadOnly && parameter.StorageType == StorageType.Double ? parameter : null;
+        }
+
         private T ResolveLayered<T>(string kind, string name, List<LayeredTypeSpec> defs, out string error)
             where T : HostObjAttributes
         {

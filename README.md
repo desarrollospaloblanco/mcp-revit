@@ -112,6 +112,39 @@ An element Revit refuses is deleted and reported by its spec id instead of
 rolling back its whole stage, and warnings are dismissed and reported, so a
 build never stops on a modal dialog.
 
+#### From PDF drawings to a model
+
+`tools/pdf-to-revit/` reads schematic-design plans printed to PDF — walls,
+doors, windows, columns and slab outlines, from the PDF's vectors, calibrated
+on the grid — and writes the spec `build_model_from_spec` builds. See its
+[README](tools/pdf-to-revit/README.md) and the complete example in
+`tools/pdf-to-revit/examples/torre/` (a 30-level tower with a parking helix).
+The client's PDFs are not in the repository; the example takes them as
+parameters.
+
+#### Installing this fork on another machine
+
+The published npm package and the upstream releases do not carry this fork's
+commands, so build from the clone. With Revit closed:
+
+```powershell
+git clone https://github.com/desarrollospaloblanco/mcp-revit.git
+cd mcp-revit
+.\scripts\install-addin.ps1 -RevitVersion 2025 -Build
+claude mcp add mcp-server-for-revit -s user -- node "$PWD\server\build\index.js"
+pip install -r tools/pdf-to-revit/requirements.txt   # only for the PDF extractor
+```
+
+`install-addin.ps1` builds the add-in and the server, backs up what is
+installed, copies the add-in and registers every command in
+`commandRegistry.json` (the plugin loads only what is registered there). Then
+open Revit and click **Revit MCP Switch**. `scripts/revit-call.mjs` calls a
+command straight over the socket, with a timeout long enough for large builds.
+
+`.claude/skills/` holds two Claude Code skills that come with the clone:
+`instalar-mcp-revit` (install and deploy) and `pdf-a-revit` (the PDF-to-model
+workflow and the lessons behind it).
+
 ## Architecture
 
 ```mermaid

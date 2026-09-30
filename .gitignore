@@ -369,5 +369,10 @@ FodyWeavers.xsd
 # =============================================================================
 # General
 # =============================================================================
-.claude/
+.claude/*
+!.claude/skills/
 .DS_Store
+
+# pdf-to-revit: extraction outputs and caches
+tools/pdf-to-revit/**/out/
+tools/pdf-to-revit/**/__pycache__/

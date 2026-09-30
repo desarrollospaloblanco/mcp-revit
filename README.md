@@ -84,6 +84,67 @@ And every downward face at the bottom is used, not just the largest, because
 Revit splits the underside of a long beam where footings cross it — taking the
 biggest face alone dropped two thirds of one beam's footprint.
 
+#### Modelling commands
+
+Two commands for building a schematic-design model from data rather than
+element by element:
+
+| Tool | Scope |
+| --- | --- |
+| `build_model_from_spec` | Build levels, grids, columns, walls, beams and floors from a spec in metres |
+| `export_view_image` | Export a floor plan, a named view or the 3D view to PNG for checking |
+
+`build_model_from_spec` takes the building as JSON, inline or from a file
+(`specPath`), and builds it in dependency order, one transaction per stage, the
+whole run as one undo step. Every element is stamped with its spec id in
+extensible storage — not in Comments or Mark, which teams already fill in — so
+sending a corrected spec updates what changed, skips what did not and never
+duplicates. `dryRun` builds everything against the real document, reports, and
+rolls it all back.
+
+A typical floor is written once: `repeatOn` lists the levels it repeats on, and
+a relative level such as `"topLevel": "+1"` means the next spec level above the
+element's base. Types missing from the document are created from `types.*` by
+duplicating a base type; a type the spec did not create is never modified,
+because it may be in use elsewhere in the model.
+
+An element Revit refuses is deleted and reported by its spec id instead of
+rolling back its whole stage, and warnings are dismissed and reported, so a
+build never stops on a modal dialog.
+
+#### From PDF drawings to a model
+
+`tools/pdf-to-revit/` reads schematic-design plans printed to PDF — walls,
+doors, windows, columns and slab outlines, from the PDF's vectors, calibrated
+on the grid — and writes the spec `build_model_from_spec` builds. See its
+[README](tools/pdf-to-revit/README.md) and the complete example in
+`tools/pdf-to-revit/examples/torre/` (a 30-level tower with a parking helix).
+The client's PDFs are not in the repository; the example takes them as
+parameters.
+
+#### Installing this fork on another machine
+
+The published npm package and the upstream releases do not carry this fork's
+commands, so build from the clone. With Revit closed:
+
+```powershell
+git clone https://github.com/desarrollospaloblanco/mcp-revit.git
+cd mcp-revit
+.\scripts\install-addin.ps1 -RevitVersion 2025 -Build
+claude mcp add mcp-server-for-revit -s user -- node "$PWD\server\build\index.js"
+pip install -r tools/pdf-to-revit/requirements.txt   # only for the PDF extractor
+```
+
+`install-addin.ps1` builds the add-in and the server, backs up what is
+installed, copies the add-in and registers every command in
+`commandRegistry.json` (the plugin loads only what is registered there). Then
+open Revit and click **Revit MCP Switch**. `scripts/revit-call.mjs` calls a
+command straight over the socket, with a timeout long enough for large builds.
+
+`.claude/skills/` holds two Claude Code skills that come with the clone:
+`instalar-mcp-revit` (install and deploy) and `pdf-a-revit` (the PDF-to-model
+workflow and the lessons behind it).
+
 ## Architecture
 
 ```mermaid
@@ -224,6 +285,8 @@ If using a release ZIP, the command set is pre-installed inside the plugin. For 
 | `copy_ramps_as_floors` | Replicate ramps as sloped floors |
 | `create_grid_railings` | Trace the grid with railings to measure the setting-out run |
 | `format_schedules` | Rename schedule headings and apply a consistent look |
+| `build_model_from_spec` | Build levels, grids, columns, walls, beams and floors from a spec |
+| `export_view_image` | Export a view to PNG for visual checking |
 
 ## Testing
 

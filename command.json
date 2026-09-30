@@ -172,6 +172,16 @@
       "commandName": "format_schedules",
       "description": "Rename schedule column headings and apply a consistent look",
       "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
+      "commandName": "build_model_from_spec",
+      "description": "Build levels, grids, columns, walls, beams and floors from a spec in metres",
+      "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
+      "commandName": "export_view_image",
+      "description": "Export a floor plan, a named view or the 3D view to PNG",
+      "assemblyPath": "RevitMCPCommandSet.dll"
     }
   ]
 }

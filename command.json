@@ -137,6 +137,66 @@
       "commandName": "normalize_parameter_text",
       "description": "Normalize the text case of a parameter across element types, instances and materials",
       "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
+      "commandName": "modify_element",
+      "description": "Modify one or more parameters of an existing element",
+      "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
+      "commandName": "get_parameter",
+      "description": "Read one or all parameters from an element",
+      "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
+      "commandName": "set_parameter",
+      "description": "Set a single parameter on one or more elements",
+      "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
+      "commandName": "create_foundation_earthworks",
+      "description": "Build excavation and backfill masses for foundations as Toposolids (Revit 2024+)",
+      "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
+      "commandName": "assign_bim_level",
+      "description": "Write the quantification level (the level a slab or beam roofs) onto elements",
+      "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
+      "commandName": "classify_elements",
+      "description": "Assign Assembly Code to element types and derive a missing Type Mark from the type name",
+      "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
+      "commandName": "analyze_clashes",
+      "description": "Find structure that overlaps without being joined and colour it in a view",
+      "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
+      "commandName": "copy_ramps_as_floors",
+      "description": "Replicate ramps as sloped floors of a given floor type",
+      "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
+      "commandName": "create_grid_railings",
+      "description": "Trace the grid with railings so the setting-out run can be quantified",
+      "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
+      "commandName": "format_schedules",
+      "description": "Rename schedule column headings and apply a consistent look",
+      "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
+      "commandName": "build_model_from_spec",
+      "description": "Build levels, grids, columns, walls, beams and floors from a spec in metres",
+      "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
+      "commandName": "export_view_image",
+      "description": "Export a floor plan, a named view or the 3D view to PNG",
+      "assemblyPath": "RevitMCPCommandSet.dll"
     }
   ]
 }

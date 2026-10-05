@@ -1,13 +1,149 @@
 [![Cover Image](./assets/cover.png?v=2)](https://github.com/mcp-servers-for-revit/mcp-servers-for-revit)
 
-# mcp-servers-for-revit
+# mcp-revit
 
 **Connect AI assistants to Autodesk Revit via the Model Context Protocol.**
 
-mcp-servers-for-revit enables AI clients like Claude, Cline, and other MCP-compatible tools to read, create, modify, and delete elements in Revit projects. It consists of three components: a TypeScript MCP server that exposes tools to AI, a C# Revit add-in that bridges commands into Revit, and a command set that implements the actual Revit API operations.
+mcp-revit enables AI clients like Claude, Cline, and other MCP-compatible tools to read, create, modify, and delete elements in Revit projects. It consists of three components: a TypeScript MCP server that exposes tools to AI, a C# Revit add-in that bridges commands into Revit, and a command set that implements the actual Revit API operations.
 
-> [!NOTE]
-> This is a fork of the original [revit-mcp](https://github.com/mcp-servers-for-revit/revit-mcp) project with additional tools and functionality improvements.
+## Provenance and license
+
+This repository is the Desarrollos Palo Blanco fork of
+[mcp-servers-for-revit](https://github.com/mcp-servers-for-revit/mcp-servers-for-revit),
+which is itself a fork of the original
+[revit-mcp](https://github.com/mcp-servers-for-revit/revit-mcp) project.
+
+It is distributed under the MIT license, and the upstream copyright notices are
+preserved verbatim in [LICENSE](./LICENSE). The fork was taken as a snapshot
+rather than a git clone, so the upstream commit history is not present here;
+this section is the record of where the code came from.
+
+### What this fork adds
+
+Three commands for reading and writing element parameters, so callers no longer
+need `send_code_to_revit` as a workaround for parameter work:
+
+| Tool | Scope |
+| --- | --- |
+| `get_parameter` | Read one parameter, or every parameter, from an element |
+| `modify_element` | Write many parameters on a single element |
+| `set_parameter` | Write one parameter across many elements |
+
+All three convert values by `StorageType` (String, Integer, Double, ElementId)
+and share a single transaction per call, so one undo reverts the whole
+operation. Double parameters default to Revit internal units (feet);
+`useDisplayUnits` routes them through `SetValueString` so callers can pass
+project units instead.
+
+They also attach an `IFailuresPreprocessor` to every writing transaction. Without
+one, a warning raised during `Commit` (for example a wall overlapping a room
+separation line) makes Revit show a modal dialog, which freezes the UI thread,
+which freezes the external event queue, which hangs every subsequent command
+until somebody clicks the dialog by hand. Warnings are recorded and dismissed so
+the call completes; errors roll the transaction back. Both are reported in the
+result rather than hidden.
+
+#### Quantification commands
+
+Seven commands for structural take-off, each one a workflow that previously had
+to be written by hand and pushed through `send_code_to_revit`:
+
+| Tool | Scope |
+| --- | --- |
+| `create_foundation_earthworks` | Excavation and backfill masses for foundations, as Toposolids (Revit 2024+) |
+| `assign_bim_level` | Write the level a slab or beam roofs, which is the one it is quantified under |
+| `classify_elements` | Assign Assembly Code by rule and derive a missing Type Mark from the type name |
+| `analyze_clashes` | Find structure that overlaps without being joined, and colour it |
+| `copy_ramps_as_floors` | Replicate ramps as sloped floors so they land in a slab take-off |
+| `create_grid_railings` | Trace the grid with railings so the setting-out run can be measured |
+| `format_schedules` | Rename schedule headings and apply one consistent look |
+
+They share three habits worth calling out, because each one exists to stop a
+silent, expensive mistake:
+
+**They target a document by title, never the active one.** `documentTitle` is
+resolved against `Application.Documents`. A command that reads
+`ActiveUIDocument` can commit its edits to whichever model the user happened to
+switch to while the call was queued, and nothing in the result would say so.
+
+**They measure geometry with solid booleans, not `ReferenceIntersector`.** Ray
+casting only sees what is visible in the view it is handed, so the same question
+gets different answers after someone moves a section box. Booleans are
+reproducible, and with a bounding-box prefilter they are also far faster.
+
+**They attach the same `IFailuresPreprocessor` as the parameter commands**, so a
+warning during `Commit` never leaves Revit sitting on a modal dialog with nobody
+there to click it.
+
+Two details inside `create_foundation_earthworks` are the difference between a
+plausible number and a correct one. The excavation ceiling is the higher of the
+element's own top and the underside of the first slab above its *bottom*:
+searching upwards from the top instead skips a slab-on-grade that is flush with
+the element, and a 0.60 m tie beam then excavates 3.68 m up to the next storey.
+And every downward face at the bottom is used, not just the largest, because
+Revit splits the underside of a long beam where footings cross it — taking the
+biggest face alone dropped two thirds of one beam's footprint.
+
+#### Modelling commands
+
+Two commands for building a schematic-design model from data rather than
+element by element:
+
+| Tool | Scope |
+| --- | --- |
+| `build_model_from_spec` | Build levels, grids, columns, walls, beams and floors from a spec in metres |
+| `export_view_image` | Export a floor plan, a named view or the 3D view to PNG for checking |
+
+`build_model_from_spec` takes the building as JSON, inline or from a file
+(`specPath`), and builds it in dependency order, one transaction per stage, the
+whole run as one undo step. Every element is stamped with its spec id in
+extensible storage — not in Comments or Mark, which teams already fill in — so
+sending a corrected spec updates what changed, skips what did not and never
+duplicates. `dryRun` builds everything against the real document, reports, and
+rolls it all back.
+
+A typical floor is written once: `repeatOn` lists the levels it repeats on, and
+a relative level such as `"topLevel": "+1"` means the next spec level above the
+element's base. Types missing from the document are created from `types.*` by
+duplicating a base type; a type the spec did not create is never modified,
+because it may be in use elsewhere in the model.
+
+An element Revit refuses is deleted and reported by its spec id instead of
+rolling back its whole stage, and warnings are dismissed and reported, so a
+build never stops on a modal dialog.
+
+#### From PDF drawings to a model
+
+`tools/pdf-to-revit/` reads schematic-design plans printed to PDF — walls,
+doors, windows, columns and slab outlines, from the PDF's vectors, calibrated
+on the grid — and writes the spec `build_model_from_spec` builds. See its
+[README](tools/pdf-to-revit/README.md) and the complete example in
+`tools/pdf-to-revit/examples/torre/` (a 30-level tower with a parking helix).
+The client's PDFs are not in the repository; the example takes them as
+parameters.
+
+#### Installing this fork on another machine
+
+The published npm package and the upstream releases do not carry this fork's
+commands, so build from the clone. With Revit closed:
+
+```powershell
+git clone https://github.com/desarrollospaloblanco/mcp-revit.git
+cd mcp-revit
+.\scripts\install-addin.ps1 -RevitVersion 2025 -Build
+claude mcp add mcp-server-for-revit -s user -- node "$PWD\server\build\index.js"
+pip install -r tools/pdf-to-revit/requirements.txt   # only for the PDF extractor
+```
+
+`install-addin.ps1` builds the add-in and the server, backs up what is
+installed, copies the add-in and registers every command in
+`commandRegistry.json` (the plugin loads only what is registered there). Then
+open Revit and click **Revit MCP Switch**. `scripts/revit-call.mjs` calls a
+command straight over the socket, with a timeout long enough for large builds.
+
+`.claude/skills/` holds two Claude Code skills that come with the clone:
+`instalar-mcp-revit` (install and deploy) and `pdf-a-revit` (the PDF-to-model
+workflow and the lessons behind it).
 
 ## Architecture
 
@@ -139,6 +275,18 @@ If using a release ZIP, the command set is pre-installed inside the plugin. For 
 | `query_stored_data` | Query stored project and room data |
 | `send_code_to_revit` | Send C# code to Revit to execute |
 | `say_hello` | Display a greeting dialog in Revit (connection test) |
+| `get_parameter` | Read one parameter, or every parameter, from an element |
+| `modify_element` | Write many parameters on a single element |
+| `set_parameter` | Write one parameter across many elements |
+| `create_foundation_earthworks` | Build excavation and backfill masses for foundations (Revit 2024+) |
+| `assign_bim_level` | Write the quantification level onto slabs and beams |
+| `classify_elements` | Assign Assembly Code and derive a missing Type Mark |
+| `analyze_clashes` | Find unjoined overlapping structure and colour it |
+| `copy_ramps_as_floors` | Replicate ramps as sloped floors |
+| `create_grid_railings` | Trace the grid with railings to measure the setting-out run |
+| `format_schedules` | Rename schedule headings and apply a consistent look |
+| `build_model_from_spec` | Build levels, grids, columns, walls, beams and floors from a spec |
+| `export_view_image` | Export a view to PNG for visual checking |
 
 ## Testing
 

@@ -1,9 +1,11 @@
 name: Release
 
+# Manual only. The publish step below pushes to npm under the upstream package
+# name, which this fork does not own, so a stray "v*" tag must not be able to
+# fire it. Re-enable the tag trigger only after the package name in
+# server/package.json points at a package this organization controls.
 on:
-  push:
-    tags:
-      - 'v*'
+  workflow_dispatch:
 
 permissions:
   contents: write

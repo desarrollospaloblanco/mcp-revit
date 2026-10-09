@@ -5,7 +5,29 @@ description: Compilar, instalar o actualizar el add-in de Revit de este fork y c
 
 # Instalar y desplegar mcp-revit
 
-## Requisitos de la máquina
+## Instalación desde el release (otras máquinas, sin compilar)
+
+Para usuarios que solo usan el MCP. Cada tag `v*` publica `mcp-revit-<tag>.zip` (workflow
+`.github/workflows/release.yml`) con el add-in compilado para Revit 2023 a 2026, el servidor con sus
+dependencias, los scripts, el extractor de PDF y estos skills. Requisitos: Node.js 20+ y GitHub CLI
+con acceso al repo privado. El prompt listo para pegar está en `docs/prompt-instalacion-mcp.md`.
+
+```powershell
+$tag = gh release view --repo desarrollospaloblanco/mcp-revit --json tagName -q .tagName
+gh release download $tag --repo desarrollospaloblanco/mcp-revit --pattern "mcp-revit-*.zip" --dir "$env:TEMP\mcp-revit-download"
+Expand-Archive "$env:TEMP\mcp-revit-download\mcp-revit-$tag.zip" "$env:LOCALAPPDATA\mcp-revit\$tag"
+cd "$env:LOCALAPPDATA\mcp-revit\$tag"
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-addin.ps1 -RevitVersion 2025
+claude mcp add mcp-server-for-revit -s user -- node "$PWD\server\build\index.js"
+```
+
+Desde el release el script no compila (rechaza `-Build`): desbloquea los archivos descargados (sin
+eso, Revit 2023/2024 no carga las DLL), instala y comprueba que `better-sqlite3` cargue con el Node
+de la máquina; si no, corre `npm rebuild better-sqlite3`, que baja el binario de GitHub. Una carpeta
+por versión: el servidor en uso bloquea su módulo nativo, así que al actualizar se extrae aparte y
+se vuelve a registrar el MCP con la ruta nueva.
+
+## Requisitos de la máquina (instalación desde el código)
 
 - Revit 2023–2026, .NET SDK (`dotnet`), Node.js 20+ y Git.
 - Para el extractor de PDF: Python 3 con `pip install -r tools/pdf-to-revit/requirements.txt`.

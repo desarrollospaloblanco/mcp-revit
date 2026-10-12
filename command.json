@@ -182,6 +182,21 @@
       "commandName": "export_view_image",
       "description": "Export a floor plan, a named view or the 3D view to PNG",
       "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
+      "commandName": "set_schedule_parameter_filter",
+      "description": "Add or update a parameter based filter on one or more schedules",
+      "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
+      "commandName": "duplicate_schedules_with_parameter",
+      "description": "Duplicate schedules for another parameter value, renaming and retargeting filter and view parameter",
+      "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
+      "commandName": "normalize_parameter_text",
+      "description": "Normalize the text case of a parameter across element types, instances and materials",
+      "assemblyPath": "RevitMCPCommandSet.dll"
     }
   ]
 }

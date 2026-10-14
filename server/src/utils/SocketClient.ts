@@ -16,6 +16,9 @@ export class RevitClientConnection {
   }
 
   private setupSocketListeners(): void {
+    // Decode as a stream so a multi-byte UTF-8 character split between chunks is not corrupted.
+    this.socket.setEncoding("utf8");
+
     this.socket.on("connect", () => {
       this.isConnected = true;
     });

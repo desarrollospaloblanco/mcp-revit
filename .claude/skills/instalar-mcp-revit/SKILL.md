@@ -64,9 +64,14 @@ node scripts/revit-call.mjs get_current_view_info "{}" 30
 
 ## Diagnóstico
 
-- El registro del plugin (`revit_mcp_plugin\Logs\mcp_*.log`) dice "Failed to create command
-  instance" justo **después** de registrar un comando con éxito: es un error de etiquetado
-  heredado, no una falla.
+- El registro del plugin (`revit_mcp_plugin\Logs\mcp_*.log`) dice "Registered command [x]" por
+  cada comando cargado. Las versiones del plugin anteriores al 2026-10-16 escribían en esa misma
+  línea, nivel `[Info]`, "Failed to create command instance [x]: RevitMCPCommandSet.dll": era el
+  mensaje de éxito mal etiquetado, no una falla. Una falla real sale con nivel `[Error]` y el
+  nombre completo del tipo más el mensaje de la excepción.
+- Para saber si lo instalado está al día, comparar fecha y tamaño de
+  `revit_mcp_plugin\RevitMCPPlugin.dll` y `Commands\RevitMCPCommandSet\<año>\RevitMCPCommandSet.dll`
+  con los de `plugin\bin\AddIn <año> Release R<aa>\`.
 - Un cliente de Node que "tarda" exactamente su timeout aunque Revit respondió: un temporizador sin
   cancelar retiene el proceso (corregido en `server/src/utils/SocketClient.ts`). Mirar el diario de
   Revit antes de culpar a Revit.

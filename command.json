@@ -197,6 +197,16 @@
       "commandName": "export_view_image",
       "description": "Export a floor plan, a named view or the 3D view to PNG",
       "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
+      "commandName": "set_dialog_guard",
+      "description": "Switch on or off the plugin's handler that answers Revit modal dialogs",
+      "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
+      "commandName": "get_dialog_log",
+      "description": "Read or clear the log of dialogs answered by the dialog guard",
+      "assemblyPath": "RevitMCPCommandSet.dll"
     }
   ]
 }

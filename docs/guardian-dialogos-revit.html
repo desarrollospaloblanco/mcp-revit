@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Guardián de diálogos</title>
+<style>
+  :root {
+    --bg: #f7f7f5; --surface: #ffffff; --text: #1d1d1b; --muted: #5f5f5a; --line: #e2e1dc;
+    --accent: #b5121b; --code-bg: #f0efea; --ok: #2f6b3a; --warn: #8a5a00;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #161615; --surface: #1f1f1d; --text: #ecebe6; --muted: #a3a29b; --line: #34332f;
+      --accent: #e0464e; --code-bg: #2a2a27; --ok: #7cc58a; --warn: #e2b04a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 15px/1.6 "Segoe UI", system-ui, sans-serif; }
+  main { max-width: 920px; margin: 0 auto; padding: 40px 16px 64px; }
+  h1 { font-size: 28px; margin: 0 0 4px; letter-spacing: -0.01em; }
+  .sub { color: var(--muted); margin: 0 0 32px; }
+  h2 { font-size: 19px; margin: 40px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+  h2 span { color: var(--accent); margin-right: 8px; font-variant-numeric: tabular-nums; }
+  p, li { max-width: 72ch; }
+  code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; font-size: 13.5px;
+         font-family: Consolas, "Cascadia Mono", monospace; }
+  pre { background: var(--code-bg); padding: 12px 14px; border-radius: 6px; overflow-x: auto;
+        font: 13px/1.5 Consolas, "Cascadia Mono", monospace; margin: 8px 0 16px; }
+  table { width: 100%; border-collapse: collapse; margin: 8px 0 16px; background: var(--surface);
+          border-radius: 6px; overflow: hidden; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 12.5px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); font-weight: 600; }
+  tr:last-child td { border-bottom: 0; }
+  .flow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 12px 0 8px; }
+  .step { background: var(--surface); border-radius: 6px; padding: 12px; border: 1px solid var(--line); }
+  .step b { display: block; margin-bottom: 4px; }
+  .step small { color: var(--muted); }
+  .verdict { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 14px 16px; margin: 12px 0; }
+  .ok { color: var(--ok); font-weight: 600; } .warn { color: var(--warn); font-weight: 600; }
+  ol li, ul li { margin: 4px 0; }
+  @media (max-width: 720px) { .flow { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 460px) { .flow { grid-template-columns: 1fr; } table { font-size: 13.5px; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Guardián de diálogos del plugin Revit MCP</h1>
+  <p class="sub">Comandos <code>set_dialog_guard</code> y <code>get_dialog_log</code> · diagnóstico del log "Failed to create command instance" · 2026-10-16</p>
+
+  <h2><span>01</span>Qué problema resuelve</h2>
+  <p>Un diálogo modal de Revit (error de contorno de losa, <code>Dialog_Revit_DocWarnDialog</code>, pregunta de unir muros) congela el hilo de la interfaz y con él la cola de eventos externos. Cada llamada MCP posterior queda esperando a que alguien haga clic.</p>
+  <p>Hasta ahora el código enviado con <code>send_code_to_revit</code> suscribía sus propios manejadores. Si esa llamada vencía a los 120 s, el manejador quedaba suscrito sin nadie que lo quitara. Ahora el estado vive en el command set cargado: hay como máximo una suscripción por evento y siempre se puede apagar.</p>
+
+  <h2><span>02</span>Cómo funciona</h2>
+  <div class="flow">
+    <div class="step"><b>1. Activar</b><small>El agente llama <code>set_dialog_guard</code> con <code>enabled: true</code>.</small></div>
+    <div class="step"><b>2. Suscribir una vez</b><small>Un evento externo suscribe <code>DialogBoxShowing</code> y, si se pide, <code>FailuresProcessing</code>. Repetir la llamada solo cambia la política.</small></div>
+    <div class="step"><b>3. Responder</b><small>Cada diálogo recibe la respuesta de la política. Se prueban botones en orden hasta que Revit acepte uno.</small></div>
+    <div class="step"><b>4. Auditar</b><small><code>get_dialog_log</code> lee el registro sin pasar por la cola de Revit, así responde aunque Revit esté ocupado.</small></div>
+  </div>
+
+  <table>
+    <tr><th>Política</th><th>Preguntas de unir / adjuntar</th><th>Resto de diálogos</th></tr>
+    <tr><td><code>no_for_join_questions</code> (por defecto)</td><td>No</td><td>Cancelar</td></tr>
+    <tr><td><code>cancel</code></td><td>Cancelar</td><td>Cancelar</td></tr>
+    <tr><td><code>ok</code></td><td>OK o Sí</td><td>OK o Sí (acepta advertencias y conserva la edición)</td></tr>
+  </table>
+  <ul>
+    <li><b>Pregunta de unir</b> se detecta por el texto del diálogo (join, attach, unir, adjuntar, enlazar...) o por un DialogId que contenga "join" o "attach".</li>
+    <li><b>Cancelar</b> en un diálogo de error revierte solo la transacción que lo generó.</li>
+    <li><b><code>deleteWarnings: true</code></b> borra las advertencias durante el procesamiento de fallas, antes de que lleguen a un diálogo. Los errores nunca se borran.</li>
+    <li>Mientras está activo también responde los diálogos del trabajo manual del usuario. Se apaga con <code>enabled: false</code> o al cerrar Revit.</li>
+  </ul>
+
+  <h2><span>03</span>Archivos</h2>
+  <table>
+    <tr><th>Archivo</th><th>Papel</th></tr>
+    <tr><td><code>commandset/Services/DialogGuard/RevitDialogGuard.cs</code></td><td>Estado estático, suscripción única, política, manejadores y log (últimas 1000 entradas)</td></tr>
+    <tr><td><code>commandset/Services/DialogGuard/SetDialogGuardEventHandler.cs</code></td><td>Aplica el cambio dentro de un contexto válido de la API</td></tr>
+    <tr><td><code>commandset/Commands/DialogGuard/SetDialogGuardCommand.cs</code></td><td>Comando <code>set_dialog_guard</code></td></tr>
+    <tr><td><code>commandset/Commands/DialogGuard/GetDialogLogCommand.cs</code></td><td>Comando <code>get_dialog_log</code>, sin evento externo</td></tr>
+    <tr><td><code>server/src/tools/set_dialog_guard.ts</code>, <code>get_dialog_log.ts</code></td><td>Herramientas MCP con descripción y esquema</td></tr>
+    <tr><td><code>command.json</code></td><td>Los dos comandos nuevos, para que <code>install-addin.ps1</code> los registre</td></tr>
+  </table>
+
+  <h2><span>04</span>"Failed to create command instance": no es un desajuste</h2>
+  <div class="verdict">
+    <p><span class="ok">Diagnóstico.</span> Esas líneas son el mensaje de <b>éxito</b> mal etiquetado. En <code>plugin/Core/CommandManager.cs</code>, justo después de <code>RegisterCommand(command)</code>, el plugin heredado del upstream escribía con nivel <code>[Info]</code> el texto "Failed to create command instance [nombre]: RevitMCPCommandSet.dll". Una falla real sale con nivel <code>[Error]</code> y lleva el nombre completo del tipo y el mensaje de la excepción, no el nombre de la DLL.</p>
+  </div>
+  <table>
+    <tr><th>Evidencia</th><th>Resultado</th></tr>
+    <tr><td>Líneas <code>[Error]</code> o <code>[Warning]</code> en todos los logs desde abril</td><td class="ok">Ninguna</td></tr>
+    <tr><td>Comandos en <code>commandRegistry.json</code> instalado</td><td class="ok">38, todos habilitados, incluidos build_model_from_spec, export_view_image, analyze_clashes y format_schedules</td></tr>
+    <tr><td>Comandos que el servidor MCP envía y el registro no tiene</td><td class="ok">Ninguno</td></tr>
+    <tr><td><code>RevitMCPCommandSet.dll</code> instalada frente a la compilada en el repo</td><td class="ok">Idénticas (5 oct, 425 472 bytes)</td></tr>
+    <tr><td><code>RevitMCPPlugin.dll</code> instalada frente a la compilada en el repo</td><td class="warn">Desfasada: instalada 5 oct (47 616 bytes), repo 14 oct (48 640 bytes). Falta la corrección del socket <code>bd5d4cb</code> que lee mensajes JSON-RPC completos en vez de un solo bloque de 8 KB</td></tr>
+    <tr><td>Carpeta suelta <code>Addins\2025\RevitMCPCommandSet\</code></td><td>La escribe el SDK al compilar; Revit no la carga porque no tiene <code>.addin</code></td></tr>
+  </table>
+  <p><b>Corrección aplicada:</b> la línea ahora dice "Registered command [nombre]". <b>Para alinear:</b> desplegar con <code>install-addin.ps1</code>, que copia plugin y command set juntos desde la misma compilación y registra los comandos que falten. El desfase real es el del plugin: llamadas grandes de <code>send_code_to_revit</code> (más de 8 KB) pueden llegar truncadas con lo instalado hoy.</p>
+
+  <h2><span>05</span>Despliegue (Revit cerrado)</h2>
+  <p>Todo está compilado en <code>Release R25</code> y el servidor MCP en <code>server/build</code>. Revit está abierto, así que no se instaló nada.</p>
+  <ol>
+    <li>Guardar o sincronizar los modelos abiertos y cerrar Revit 2025.</li>
+    <li>Desde la raíz del repo:<pre>.\scripts\install-addin.ps1 -RevitVersion 2025</pre>Respalda lo instalado en <code>%USERPROFILE%\mcp-revit-backups\</code>, copia plugin y command set, y agrega <code>set_dialog_guard</code> y <code>get_dialog_log</code> a <code>commandRegistry.json</code>.</li>
+    <li>Reiniciar el cliente MCP (Claude) para que lea las dos herramientas nuevas.</li>
+    <li>Abrir Revit y pulsar "Revit MCP Switch". En el log nuevo deben aparecer 40 líneas "Registered command".</li>
+  </ol>
+  <p>Cerrar Revit también elimina los manejadores que el código enviado con <code>send_code_to_revit</code> haya dejado suscritos en esta sesión.</p>
+
+  <h2><span>06</span>Cómo probarlo</h2>
+  <ol>
+    <li>Activar y revisar el estado:<pre>node scripts/revit-call.mjs set_dialog_guard "{\"enabled\":true}" 30
+node scripts/revit-call.mjs get_dialog_log "{}" 30</pre>Debe devolver <code>enabled: true</code> y <code>dialogBoxShowingSubscribed: true</code>.</li>
+    <li>Repetir la activación y confirmar que nada cambia salvo la política (sigue habiendo una sola suscripción).</li>
+    <li>Provocar un diálogo de advertencia: crear con <code>send_code_to_revit</code> dos muros superpuestos en una transacción sin preprocesador de fallas. Sin <code>deleteWarnings</code> el log muestra <code>Dialog_Revit_DocWarnDialog</code> con respuesta <code>Cancel</code> y la transacción se revierte.</li>
+    <li>Repetir con <code>{"enabled":true,"deleteWarnings":true}</code>: el log muestra una entrada <code>source: failure</code>, <code>warning deleted</code>, y los muros quedan creados.</li>
+    <li>Pregunta de unir: en la interfaz, mover un muro sobre otro o adjuntar un muro a un techo hasta que Revit pregunte; el log debe mostrar respuesta <code>No</code>.</li>
+    <li>Apagar: <code>set_dialog_guard {"enabled":false}</code> y comprobar <code>dialogBoxShowingSubscribed: false</code>.</li>
+    <li>Leer y limpiar: <code>get_dialog_log {"clear":true}</code>.</li>
+  </ol>
+
+  <h2><span>07</span>Límites conocidos</h2>
+  <ul>
+    <li>Si Revit ya está bloqueado por un diálogo, <code>set_dialog_guard</code> vence a los 15 s y se aplica cuando Revit quede libre. <code>get_dialog_log</code> sí responde.</li>
+    <li>Algunos diálogos no aceptan respuesta por API; la entrada queda como <code>none (Revit rejected ...)</code> y el diálogo puede seguir abierto. Para esos sigue sirviendo <code>scripts/revit-dialog-watcher.ps1</code>.</li>
+    <li>El log vive en memoria: se pierde al cerrar Revit.</li>
+    <li>No se probó todavía dentro de Revit; solo está compilado.</li>
+  </ul>
+</main>
+</body>
+</html>

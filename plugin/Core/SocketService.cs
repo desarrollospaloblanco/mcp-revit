@@ -20,7 +20,10 @@ namespace revit_mcp_plugin.Core
         private TcpListener _listener;
         private Thread _listenerThread;
         private bool _isRunning;
-        private int _port = 8080;
+        private const int FirstPort = 8080;
+        private const int LastPort = 8089;
+        private int _port = FirstPort;
+        private string _revitVersion;
         private UIApplication _uiApp;
         private ICommandRegistry _commandRegistry;
         private ILogger _logger;
@@ -64,6 +67,7 @@ namespace revit_mcp_plugin.Core
             // Get the current Revit version.
             var versionAdapter = new RevitMCPSDK.API.Utils.RevitVersionAdapter(_uiApp.Application);
             string currentVersion = versionAdapter.GetRevitVersion();
+            _revitVersion = currentVersion;
             _logger.Info("当前 Revit 版本: {0}\nCurrent Revit version: {0}", currentVersion);
 
 
@@ -84,7 +88,6 @@ namespace revit_mcp_plugin.Core
             //{
             //    _port = configManager.Config.Settings.Port;
             //}
-            _port = 8080; // 固定端口号 - Hard-wired port number.
 
             // 加载命令
             // Load command.
@@ -99,22 +102,39 @@ namespace revit_mcp_plugin.Core
         {
             if (_isRunning) return;
 
-            try
+            // Each Revit session takes the first free port from 8080, so several sessions can run
+            // the service at once; the MCP server finds them through the instance registry.
+            for (int port = FirstPort; port <= LastPort; port++)
             {
-                _isRunning = true;
-                _listener = new TcpListener(IPAddress.Any, _port);
-                _listener.Start();
-
-                _listenerThread = new Thread(ListenForClients)
+                try
                 {
-                    IsBackground = true
-                };
-                _listenerThread.Start();              
+                    var listener = new TcpListener(IPAddress.Loopback, port);
+                    listener.Start();
+                    _listener = listener;
+                    _port = port;
+                    break;
+                }
+                catch (SocketException)
+                {
+                    // Port taken by another Revit session or another program: try the next one.
+                }
             }
-            catch (Exception)
+
+            if (_listener == null)
             {
-                _isRunning = false;
+                _logger.Error("No free port between {0} and {1}", FirstPort, LastPort);
+                return;
             }
+
+            _isRunning = true;
+            _listenerThread = new Thread(ListenForClients)
+            {
+                IsBackground = true
+            };
+            _listenerThread.Start();
+
+            InstanceRegistry.Register(_uiApp, _port, _revitVersion);
+            _logger.Info($"Socket service listening on port {_port}");
         }
 
         public void Stop()
@@ -124,6 +144,7 @@ namespace revit_mcp_plugin.Core
             try
             {
                 _isRunning = false;
+                InstanceRegistry.Unregister(_uiApp);
 
                 _listener?.Stop();
                 _listener = null;

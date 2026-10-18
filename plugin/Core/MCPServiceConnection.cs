@@ -25,7 +25,7 @@ namespace revit_mcp_plugin.Core
                 {
                     service.Initialize(commandData.Application);
                     service.Start();
-                    TaskDialog.Show("revitMCP", "Open Server");
+                    TaskDialog.Show("revitMCP", service.IsRunning ? $"Open Server (port {service.Port})" : "Could not open the server: no free port between 8080 and 8089");
                 }
 
                 return Result.Succeeded;

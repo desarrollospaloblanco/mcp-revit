@@ -1,5 +1,6 @@
 using Autodesk.Revit.DB;
 using Autodesk.Revit.DB.Events;
+using Newtonsoft.Json;
 
 using RevitApplication = Autodesk.Revit.ApplicationServices.Application;
 
@@ -116,15 +117,15 @@ namespace RevitMCPCommandSet.Services.Execution
 
     public class DocumentChangeSummary
     {
-        public string Document { get; set; }
-        public int Added { get; set; }
-        public int Modified { get; set; }
-        public int Deleted { get; set; }
-        public Dictionary<string, int> AddedByCategory { get; set; }
-        public Dictionary<string, int> ModifiedByCategory { get; set; }
-        public List<long> AddedSample { get; set; }
-        public List<long> ModifiedSample { get; set; }
-        public List<long> DeletedSample { get; set; }
+        [JsonProperty("document")] public string Document { get; set; }
+        [JsonProperty("added")] public int Added { get; set; }
+        [JsonProperty("modified")] public int Modified { get; set; }
+        [JsonProperty("deleted")] public int Deleted { get; set; }
+        [JsonProperty("addedByCategory")] public Dictionary<string, int> AddedByCategory { get; set; }
+        [JsonProperty("modifiedByCategory")] public Dictionary<string, int> ModifiedByCategory { get; set; }
+        [JsonProperty("addedSample")] public List<long> AddedSample { get; set; }
+        [JsonProperty("modifiedSample")] public List<long> ModifiedSample { get; set; }
+        [JsonProperty("deletedSample")] public List<long> DeletedSample { get; set; }
 
         public override string ToString() =>
             $"{Document}: {Added} creados, {Modified} modificados, {Deleted} borrados";

@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Reflection;
 using Autodesk.Revit.DB;
+using Autodesk.Revit.DB.Events;
 using Autodesk.Revit.UI;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -37,6 +38,18 @@ namespace RevitMCPCommandSet.Commands.ExecuteDynamicCode
         public bool TaskCompleted { get; private set; }
         private readonly ManualResetEvent _resetEvent = new ManualResetEvent(false);
 
+        // Set while no run is pending or executing. A caller whose wait timed out leaves the run going
+        // on in Revit; the next request must wait for this instead of overwriting the pending run's
+        // parameters and receiving its result.
+        private readonly ManualResetEvent _idle = new ManualResetEvent(true);
+
+        private readonly List<string> _warnings = new List<string>();
+        private readonly List<string> _errors = new List<string>();
+
+        public bool WaitUntilIdle(int timeoutMilliseconds) => _idle.WaitOne(timeoutMilliseconds);
+
+        public string CurrentRunTitle => _title;
+
         public void SetExecutionParameters(string code, object[] parameters, string transactionMode,
             bool dryRun, bool group, string title)
         {
@@ -48,6 +61,7 @@ namespace RevitMCPCommandSet.Commands.ExecuteDynamicCode
             _title = string.IsNullOrWhiteSpace(title) ? "MCP: código C#" : "MCP: " + title.Trim();
             TaskCompleted = false;
             _resetEvent.Reset();
+            _idle.Reset();
         }
 
         public bool WaitForCompletion(int timeoutMilliseconds = 10000)
@@ -80,6 +94,9 @@ namespace RevitMCPCommandSet.Commands.ExecuteDynamicCode
             ResultInfo = new ExecutionResultInfo { RunId = record.Id, Policy = policy, DryRun = dryRun, Grouped = grouped };
 
             var groups = new List<TransactionGroup>();
+            _warnings.Clear();
+            _errors.Clear();
+            app.Application.FailuresProcessing += OnFailuresProcessing;
             try
             {
                 Document activeDoc = app.ActiveUIDocument?.Document;
@@ -131,6 +148,11 @@ namespace RevitMCPCommandSet.Commands.ExecuteDynamicCode
             }
             finally
             {
+                app.Application.FailuresProcessing -= OnFailuresProcessing;
+                ResultInfo.Warnings = Distinct(_warnings);
+                ResultInfo.Errors = Distinct(_errors);
+                record.Warnings = ResultInfo.Warnings;
+                record.Errors = ResultInfo.Errors;
                 foreach (var g in groups) g.Dispose();
                 watch.Stop();
                 record.DurationMs = watch.ElapsedMilliseconds;
@@ -144,8 +166,47 @@ namespace RevitMCPCommandSet.Commands.ExecuteDynamicCode
 
                 TaskCompleted = true;
                 _resetEvent.Set();
+                _idle.Set();
             }
         }
+
+        /// <summary>
+        /// Keeps agent code that has no failure handling from leaving Revit blocked on a modal
+        /// failure dialog: warnings are deleted, and an error rolls back the transaction that raised
+        /// it (the script sees the transaction as rolled back). Both are reported in the result.
+        /// A transaction's own failure preprocessor still runs first.
+        /// </summary>
+        private void OnFailuresProcessing(object sender, FailuresProcessingEventArgs e)
+        {
+            try
+            {
+                FailuresAccessor accessor = e.GetFailuresAccessor();
+                bool rollBack = false;
+                foreach (FailureMessageAccessor message in accessor.GetFailureMessages())
+                {
+                    if (message.GetSeverity() == FailureSeverity.Warning)
+                    {
+                        _warnings.Add(message.GetDescriptionText());
+                        accessor.DeleteWarning(message);
+                    }
+                    else
+                    {
+                        _errors.Add(message.GetDescriptionText());
+                        rollBack = true;
+                    }
+                }
+                if (rollBack)
+                    e.SetProcessingResult(FailureProcessingResult.ProceedWithRollBack);
+            }
+            catch (Exception)
+            {
+                // An exception escaping a Revit event handler can take Revit down.
+            }
+        }
+
+        /// <summary>Distinct messages with how many times each was raised, at most 20.</summary>
+        private static List<string> Distinct(List<string> messages) =>
+            messages.GroupBy(m => m).Select(g => g.Count() > 1 ? $"{g.Key} (x{g.Count()})" : g.Key).Take(20).ToList();
 
         private object Run(Document activeDoc)
         {
@@ -306,6 +367,7 @@ namespace RevitMCPCommandSet.Commands.ExecuteDynamicCode
 using System;
 using System.Linq;
 using Autodesk.Revit.DB;
+using Autodesk.Revit.DB.Events;
 using Autodesk.Revit.UI;
 using System.Collections.Generic;
 
@@ -399,5 +461,11 @@ namespace AIGeneratedCode
 
         [JsonProperty("changes")]
         public List<DocumentChangeSummary> Changes { get; set; }
+
+        [JsonProperty("warningsDeleted")]
+        public List<string> Warnings { get; set; }
+
+        [JsonProperty("errorsRolledBack")]
+        public List<string> Errors { get; set; }
     }
 }

@@ -70,6 +70,8 @@ namespace RevitMCPCommandSet.Services.Execution
         [JsonProperty("result")] public string Result { get; set; }
         [JsonProperty("errorMessage")] public string ErrorMessage { get; set; }
         [JsonProperty("changes")] public List<DocumentChangeSummary> Changes { get; set; }
+        [JsonProperty("warningsDeleted")] public List<string> Warnings { get; set; }
+        [JsonProperty("errorsRolledBack")] public List<string> Errors { get; set; }
         [JsonProperty("parameters")] public object[] Parameters { get; set; }
         [JsonProperty("code")] public string Code { get; set; }
     }

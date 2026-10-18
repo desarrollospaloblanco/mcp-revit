@@ -14,6 +14,7 @@ namespace RevitMCPCommandSet.Commands.ExecuteDynamicCode
         private const int DefaultAskTimeoutSeconds = 600;
         private const int MaxTimeoutSeconds = 3600;
 
+        private static readonly object _executionLock = new object();
         private ExecuteCodeEventHandler _handler => (ExecuteCodeEventHandler)Handler;
 
         public override string CommandName => "send_code_to_revit";
@@ -45,11 +46,19 @@ namespace RevitMCPCommandSet.Commands.ExecuteDynamicCode
                 int timeoutSeconds = parameters["timeoutSeconds"]?.Value<int>() ?? defaultTimeout;
                 timeoutSeconds = Math.Max(5, Math.Min(MaxTimeoutSeconds, timeoutSeconds));
 
-                _handler.SetExecutionParameters(code, executionParameters, transactionMode, dryRun, group, title);
-
-                if (RaiseAndWaitForCompletion(timeoutSeconds * 1000))
+                lock (_executionLock)
                 {
-                    return _handler.ResultInfo;
+                    // A previous run whose caller gave up may still be executing in Revit.
+                    if (!_handler.WaitUntilIdle(timeoutSeconds * 1000))
+                        throw new TimeoutException(
+                            $"Revit is still executing the previous run ({_handler.CurrentRunTitle}); nothing was sent. Check get_run_history and retry later.");
+
+                    _handler.SetExecutionParameters(code, executionParameters, transactionMode, dryRun, group, title);
+
+                    if (RaiseAndWaitForCompletion(timeoutSeconds * 1000))
+                    {
+                        return _handler.ResultInfo;
+                    }
                 }
 
                 throw new TimeoutException(

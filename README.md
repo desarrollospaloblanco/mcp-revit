@@ -112,6 +112,42 @@ An element Revit refuses is deleted and reported by its spec id instead of
 rolling back its whole stage, and warnings are dismissed and reported, so a
 build never stops on a modal dialog.
 
+#### Execution control, run history and agent aids
+
+Ideas taken from pyRevit's agent runtime (the server behind BIMBridge),
+implemented in this fork's C# plugin:
+
+- **One undo step per run.** `send_code_to_revit` wraps each run in a
+  transaction group on every open document, so a script's changes, even in a
+  background document, undo with a single Ctrl+Z. The response lists what was
+  created, modified and deleted per document. `dryRun` reports those changes
+  and rolls everything back; a failing run is rolled back too. Scripts that
+  save, synchronize, open or close documents must pass `group: false`.
+- **Execution policy.** `set_execution_policy` sets, for every Revit session on
+  the machine, whether changes are applied (`auto`, the default), shown isolated
+  in Revit for **Aplicar** / **Descartar** (`ask`), or never kept (`readonly`).
+- **No blocking dialogs.** During a run, warnings are deleted and errors roll
+  back the transaction that raised them; both come back with the result.
+- **Run history.** Every run (script, result, changes, outcome) is kept 14 days
+  under `%APPDATA%\RevitMCP\runs`; `get_run_history` and `get_run` read it from
+  disk, so they answer while Revit is busy. Runs are queued: a request never
+  receives the result of a previous run that is still executing.
+- **`lookup_revit_api`** returns signatures, enum values and creation methods
+  reflected from the running Revit, with close matches for names that do not
+  exist.
+- **`capture_view`** returns a PNG of an existing view, or of a temporary 3D
+  view framed on elements that is rolled back after the export.
+- **`mep_review`** is a read-only MEP check (open connectors, ducts and pipes
+  outside systems, systems, uninsulated runs, sanitary slopes, devices without
+  a circuit), adapted from the BIMBridge `mep-review` skill.
+- **Several Revit sessions.** Each session takes the first free port from 8080
+  to 8089 and registers itself in `%APPDATA%\RevitMCP\instances`;
+  `list_revit_instances` and `select_revit_instance` choose the one the tools
+  talk to (`REVIT_MCP_PORT` overrides it for the scripts).
+
+`scripts/run-code.mjs` takes `--dry-run`, `--no-group` and `--title` for the
+same options.
+
 #### From PDF drawings to a model
 
 `tools/pdf-to-revit/` reads schematic-design plans printed to PDF — walls,
@@ -287,6 +323,12 @@ If using a release ZIP, the command set is pre-installed inside the plugin. For 
 | `format_schedules` | Rename schedule headings and apply a consistent look |
 | `build_model_from_spec` | Build levels, grids, columns, walls, beams and floors from a spec |
 | `export_view_image` | Export a view to PNG for visual checking |
+| `set_execution_policy` | Apply changes, ask in Revit, or keep nothing (auto, ask, readonly) |
+| `get_run_history` / `get_run` | List and read the recorded `send_code_to_revit` runs |
+| `lookup_revit_api` | Signatures and enum values from the running Revit |
+| `capture_view` | PNG of a view or of a temporary 3D view, returned as an image |
+| `mep_review` | Read-only MEP model review |
+| `list_revit_instances` / `select_revit_instance` | List the Revit sessions and choose one |
 
 ## Testing
 

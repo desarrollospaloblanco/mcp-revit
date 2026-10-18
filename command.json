@@ -207,6 +207,26 @@
       "commandName": "get_dialog_log",
       "description": "Read or clear the log of dialogs answered by the dialog guard",
       "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
+      "commandName": "set_execution_policy",
+      "description": "Read or change the execution policy of send_code_to_revit (auto, ask, readonly)",
+      "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
+      "commandName": "lookup_revit_api",
+      "description": "Look up Revit API types and members in the running Revit",
+      "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
+      "commandName": "capture_view",
+      "description": "Render a temporary 3D view or an existing view to PNG",
+      "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
+      "commandName": "mep_review",
+      "description": "Read-only MEP model review",
+      "assemblyPath": "RevitMCPCommandSet.dll"
     }
   ]
 }

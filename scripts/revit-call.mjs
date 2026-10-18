@@ -5,11 +5,13 @@
 //   node scripts/revit-call.mjs build_model_from_spec '{"specPath":"C:/.../spec.json","dryRun":true}' 1800
 //
 // Needs the MCP server built (npm run build in server/) and the service switched on in Revit.
+// The Revit session is the only running one, the one in REVIT_MCP_PORT, or 8080.
 import { fileURLToPath, pathToFileURL } from "url";
 import { dirname, join } from "path";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const { RevitClientConnection } = await import(pathToFileURL(join(here, "../server/build/utils/SocketClient.js")).href);
+const { resolvePort } = await import(pathToFileURL(join(here, "../server/build/utils/RevitInstances.js")).href);
 
 const [command, rawParams = "{}", timeout = "600"] = process.argv.slice(2);
 if (!command) {
@@ -17,10 +19,11 @@ if (!command) {
   process.exit(2);
 }
 
-const client = new RevitClientConnection("localhost", 8080);
+const port = resolvePort();
+const client = new RevitClientConnection("127.0.0.1", port);
 await new Promise((resolve, reject) => {
   client.socket.once("connect", resolve);
-  client.socket.once("error", () => reject(new Error("Revit is not listening on port 8080: switch the MCP service on")));
+  client.socket.once("error", () => reject(new Error(`Revit is not listening on port ${port}: switch the MCP service on`)));
   client.connect();
 });
 

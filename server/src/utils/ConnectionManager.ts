@@ -1,4 +1,5 @@
 import { RevitClientConnection } from "./SocketClient.js";
+import { resolvePort } from "./RevitInstances.js";
 
 // Mutex to serialize all Revit connections - prevents race conditions
 // when multiple requests are made in parallel
@@ -20,7 +21,8 @@ export async function withRevitConnection<T>(
   });
   await previousMutex;
 
-  const revitClient = new RevitClientConnection("localhost", 8080);
+  const port = resolvePort();
+  const revitClient = new RevitClientConnection("127.0.0.1", port);
 
   try {
     // 连接到Revit客户端
@@ -35,7 +37,7 @@ export async function withRevitConnection<T>(
         const onError = (error: any) => {
           revitClient.socket.removeListener("connect", onConnect);
           revitClient.socket.removeListener("error", onError);
-          reject(new Error("connect to revit client failed"));
+          reject(new Error(`connect to revit client failed on port ${port}: switch the MCP service on in Revit, or check list_revit_instances`));
         };
 
         revitClient.socket.on("connect", onConnect);

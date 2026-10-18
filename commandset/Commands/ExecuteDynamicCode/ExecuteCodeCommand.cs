@@ -1,5 +1,6 @@
-﻿using Autodesk.Revit.UI;
+using Autodesk.Revit.UI;
 using Newtonsoft.Json.Linq;
+using RevitMCPCommandSet.Services.Execution;
 using RevitMCPSDK.API.Base;
 
 namespace RevitMCPCommandSet.Commands.ExecuteDynamicCode
@@ -9,6 +10,10 @@ namespace RevitMCPCommandSet.Commands.ExecuteDynamicCode
     /// </summary>
     public class ExecuteCodeCommand : ExternalEventCommandBase
     {
+        private const int DefaultTimeoutSeconds = 60;
+        private const int DefaultAskTimeoutSeconds = 600;
+        private const int MaxTimeoutSeconds = 3600;
+
         private ExecuteCodeEventHandler _handler => (ExecuteCodeEventHandler)Handler;
 
         public override string CommandName => "send_code_to_revit";
@@ -22,30 +27,33 @@ namespace RevitMCPCommandSet.Commands.ExecuteDynamicCode
         {
             try
             {
-                // 参数验证
                 if (!parameters.ContainsKey("code"))
                 {
                     throw new ArgumentException("Missing required parameter: 'code'");
                 }
 
-                // 解析代码和参数
                 string code = parameters["code"].Value<string>();
                 JArray parametersArray = parameters["parameters"] as JArray;
                 object[] executionParameters = parametersArray?.ToObject<object[]>() ?? Array.Empty<object>();
                 string transactionMode = parameters["transactionMode"]?.Value<string>() ?? ExecuteCodeEventHandler.TransactionModeAuto;
+                bool dryRun = parameters["dryRun"]?.Value<bool>() ?? false;
+                bool group = parameters["group"]?.Value<bool>() ?? true;
+                string title = parameters["title"]?.Value<string>();
 
-                // 设置执行参数
-                _handler.SetExecutionParameters(code, executionParameters, transactionMode);
+                // Waiting for the user's approval can take minutes, so the ask policy gets a longer default.
+                int defaultTimeout = ExecutionPolicy.Current == ExecutionPolicy.Ask ? DefaultAskTimeoutSeconds : DefaultTimeoutSeconds;
+                int timeoutSeconds = parameters["timeoutSeconds"]?.Value<int>() ?? defaultTimeout;
+                timeoutSeconds = Math.Max(5, Math.Min(MaxTimeoutSeconds, timeoutSeconds));
 
-                // 触发外部事件并等待完成
-                if (RaiseAndWaitForCompletion(60000)) // 1分钟超时
+                _handler.SetExecutionParameters(code, executionParameters, transactionMode, dryRun, group, title);
+
+                if (RaiseAndWaitForCompletion(timeoutSeconds * 1000))
                 {
                     return _handler.ResultInfo;
                 }
-                else
-                {
-                    throw new TimeoutException("代码执行超时");
-                }
+
+                throw new TimeoutException(
+                    $"代码执行超时 ({timeoutSeconds} s). The run may still be going on in Revit; check get_run_history before retrying.");
             }
             catch (Exception ex)
             {

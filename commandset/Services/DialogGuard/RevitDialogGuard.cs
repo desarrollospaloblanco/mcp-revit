@@ -172,8 +172,17 @@ namespace RevitMCPCommandSet.Services.DialogGuard
             _subscribedUiApp = null;
         }
 
+        /// <summary>
+        /// Set while the plugin itself asks the user something (the send_code_to_revit approval
+        /// prompt), so the guard does not answer it on the user's behalf.
+        /// </summary>
+        public static bool Suspended { get; set; }
+
         private static void OnDialogBoxShowing(object sender, DialogBoxShowingEventArgs e)
         {
+            if (Suspended)
+                return;
+
             // An exception thrown out of a Revit event handler can take Revit down, so failures
             // are recorded in the log instead of propagating.
             var entry = new DialogLogEntry { Source = "dialog", DialogId = e.DialogId };

@@ -27,5 +27,15 @@ namespace RevitMCPCommandSet.Utils
 #else
         public static int GetIntValue(this ElementId id) => id.IntegerValue;
 #endif
+
+        /// <summary>
+        /// Builds an ElementId from a numeric value, compatible with all Revit versions
+        /// (the long constructor only exists from Revit 2024).
+        /// </summary>
+#if REVIT2024_OR_GREATER
+        public static ElementId ToElementId(long value) => new ElementId(value);
+#else
+        public static ElementId ToElementId(long value) => new ElementId((int)value);
+#endif
     }
 }

@@ -252,6 +252,11 @@
       "commandName": "check_hosted_openings",
       "description": "Read-only review of doors and windows against their host walls",
       "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
+      "commandName": "create_area_plan_from_rooms",
+      "description": "Build an area plan with one area per apartment from rooms",
+      "assemblyPath": "RevitMCPCommandSet.dll"
     }
   ]
 }

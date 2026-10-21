@@ -307,6 +307,11 @@
       "commandName": "list_sheets",
       "description": "Read-only inventory of sheets and viewports",
       "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
+      "commandName": "apply_color_scheme",
+      "description": "Color fill scheme, legend and tags on a room or area plan",
+      "assemblyPath": "RevitMCPCommandSet.dll"
     }
   ]
 }

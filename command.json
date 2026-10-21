@@ -337,6 +337,16 @@
       "commandName": "replace_floor_outline",
       "description": "Replace the outer boundary of a floor keeping the floor",
       "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
+      "commandName": "manage_types",
+      "description": "List, duplicate with layers and change types",
+      "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
+      "commandName": "edit_materials",
+      "description": "Material usage, creation and color",
+      "assemblyPath": "RevitMCPCommandSet.dll"
     }
   ]
 }

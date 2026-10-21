@@ -372,6 +372,11 @@
       "commandName": "manage_rooms",
       "description": "Room separators, clean-up, placement and parameters",
       "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
+      "commandName": "ensure_parameter",
+      "description": "Create or extend a project parameter binding",
+      "assemblyPath": "RevitMCPCommandSet.dll"
     }
   ]
 }

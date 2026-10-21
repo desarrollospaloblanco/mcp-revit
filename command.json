@@ -272,6 +272,11 @@
       "commandName": "export_plan_geometry",
       "description": "Read-only dump of a level's plan geometry in metres",
       "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
+      "commandName": "qa_review",
+      "description": "Orphan tags and model warnings across open documents",
+      "assemblyPath": "RevitMCPCommandSet.dll"
     }
   ]
 }

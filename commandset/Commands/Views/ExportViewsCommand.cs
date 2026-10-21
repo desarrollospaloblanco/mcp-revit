@@ -59,7 +59,9 @@ namespace RevitMCPCommandSet.Commands.Views
                 doc.GetElement(Utils.ElementIdExtensions.ToElementId(id)) is View byId && !byId.IsTemplate)
                 return byId;
             return new FilteredElementCollector(doc).OfClass(typeof(View)).Cast<View>()
-                .FirstOrDefault(v => !v.IsTemplate && string.Equals(v.Name, key, StringComparison.OrdinalIgnoreCase));
+                       .FirstOrDefault(v => !v.IsTemplate && string.Equals(v.Name, key, StringComparison.OrdinalIgnoreCase))
+                   ?? new FilteredElementCollector(doc).OfClass(typeof(ViewSheet)).Cast<ViewSheet>()
+                       .FirstOrDefault(s => string.Equals(s.SheetNumber, key, StringComparison.OrdinalIgnoreCase));
         }
     }
 }

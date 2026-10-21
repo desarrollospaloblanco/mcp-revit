@@ -292,6 +292,21 @@
       "commandName": "create_elevation_views",
       "description": "Orthographic facade views from sections around a box",
       "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
+      "commandName": "create_sheets",
+      "description": "Create sheets with title block and placed views",
+      "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
+      "commandName": "arrange_viewports",
+      "description": "Align viewports top-left or by a model point",
+      "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
+      "commandName": "list_sheets",
+      "description": "Read-only inventory of sheets and viewports",
+      "assemblyPath": "RevitMCPCommandSet.dll"
     }
   ]
 }

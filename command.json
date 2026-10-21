@@ -227,6 +227,21 @@
       "commandName": "mep_review",
       "description": "Read-only MEP model review",
       "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
+      "commandName": "set_perspective_view",
+      "description": "Create or update a presentation perspective with the same camera and crop across documents",
+      "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
+      "commandName": "export_views",
+      "description": "Export several views from open documents to PNG",
+      "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
+      "commandName": "copy_view_camera",
+      "description": "Copy the camera and crop of a 3D view to other documents",
+      "assemblyPath": "RevitMCPCommandSet.dll"
     }
   ]
 }

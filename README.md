@@ -148,6 +148,29 @@ implemented in this fork's C# plugin:
 `scripts/run-code.mjs` takes `--dry-run`, `--no-group` and `--title` for the
 same options.
 
+#### Tools for recurring work
+
+Work that kept coming back as `send_code_to_revit` scripts is now a tool:
+
+- **`set_perspective_view`** places a camera from an eye and a target in
+  metres (two-point by default, so vertical edges stay vertical), hides levels,
+  grids, lines and imports, and frames the model by exporting the view once and
+  measuring where the model lands in the image. Given several documents, it
+  applies the same camera and the same crop to all of them, which is how two
+  design options are compared. `copy_view_camera` copies an existing camera and
+  crop to other documents, and `export_views` exports many views at once.
+- **`save_documents`** saves, and optionally synchronizes with central, outside
+  any transaction. It skips never-saved and detached models, checks free disk
+  space first, and posts Save or Synchronize Now when the API refuses the active
+  document.
+- **`check_hosted_openings`** reviews doors and windows: no host, a host that
+  is not a wall, an opening that does not cut its wall, an opening that reaches
+  the end of its wall, and walls crossing or doubling the wall at a door.
+- **`create_area_plan_from_rooms`** builds an area plan with one area per
+  apartment from the rooms' Department (or another parameter): the outline of
+  each apartment at wall centres, areas named and typed, plus color scheme,
+  tags and legend. The same apartment type in two towers becomes two areas.
+
 #### From PDF drawings to a model
 
 `tools/pdf-to-revit/` reads schematic-design plans printed to PDF — walls,
@@ -329,6 +352,12 @@ If using a release ZIP, the command set is pre-installed inside the plugin. For 
 | `capture_view` | PNG of a view or of a temporary 3D view, returned as an image |
 | `mep_review` | Read-only MEP model review |
 | `list_revit_instances` / `select_revit_instance` | List the Revit sessions and choose one |
+| `set_perspective_view` | Presentation perspective with the same camera and crop across documents |
+| `copy_view_camera` | Copy a 3D view's camera and crop to other documents |
+| `export_views` | Export several views from open documents to PNG |
+| `save_documents` | Save documents, optionally synchronizing with central |
+| `check_hosted_openings` | Read-only review of doors and windows against their host walls |
+| `create_area_plan_from_rooms` | Area plan with one area per apartment from the rooms of a level |
 
 ## Testing
 

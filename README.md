@@ -217,14 +217,14 @@ commands. Install from this fork's own GitHub release, or build from the clone.
 **From the release (no build).** Each `v*` tag publishes
 `mcp-revit-<tag>.zip` with the add-in for Revit 2023-2026 already built, the
 MCP server with its dependencies, the scripts, the PDF extractor and the
-skills. It needs Node.js 20+ and the GitHub CLI with access to this private
-repository. `docs/prompt-instalacion-mcp.md` has a ready-to-paste Claude Code
+skills. It needs Node.js 20+; the repository is public, so no GitHub CLI or
+sign-in is needed. `docs/prompt-instalacion-mcp.md` has a ready-to-paste Claude Code
 prompt that does every step. With Revit closed:
 
 ```powershell
-$tag = gh release view --repo desarrollospaloblanco/mcp-revit --json tagName -q .tagName
-gh release download $tag --repo desarrollospaloblanco/mcp-revit --pattern "mcp-revit-*.zip" --dir "$env:TEMP\mcp-revit-download"
-Expand-Archive "$env:TEMP\mcp-revit-download\mcp-revit-$tag.zip" "$env:LOCALAPPDATA\mcp-revit\$tag"
+$tag = (Invoke-RestMethod https://api.github.com/repos/desarrollospaloblanco/mcp-revit/releases/latest).tag_name
+Invoke-WebRequest "https://github.com/desarrollospaloblanco/mcp-revit/releases/download/$tag/mcp-revit-$tag.zip" -OutFile "$env:TEMP\mcp-revit-$tag.zip"
+Expand-Archive "$env:TEMP\mcp-revit-$tag.zip" "$env:LOCALAPPDATA\mcp-revit\$tag"
 cd "$env:LOCALAPPDATA\mcp-revit\$tag"
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-addin.ps1 -RevitVersion 2025
 claude mcp add mcp-server-for-revit -s user -- node "$PWD\server\build\index.js"

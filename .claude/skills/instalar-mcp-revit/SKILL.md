@@ -9,13 +9,13 @@ description: Compilar, instalar o actualizar el add-in de Revit de este fork y c
 
 Para usuarios que solo usan el MCP. Cada tag `v*` publica `mcp-revit-<tag>.zip` (workflow
 `.github/workflows/release.yml`) con el add-in compilado para Revit 2023 a 2026, el servidor con sus
-dependencias, los scripts, el extractor de PDF y estos skills. Requisitos: Node.js 20+ y GitHub CLI
-con acceso al repo privado. El prompt listo para pegar está en `docs/prompt-instalacion-mcp.md`.
+dependencias, los scripts, el extractor de PDF y estos skills. Requisito: Node.js 20+. El repo es público,
+así que la descarga no necesita GitHub CLI ni iniciar sesión. El prompt listo para pegar está en `docs/prompt-instalacion-mcp.md`.
 
 ```powershell
-$tag = gh release view --repo desarrollospaloblanco/mcp-revit --json tagName -q .tagName
-gh release download $tag --repo desarrollospaloblanco/mcp-revit --pattern "mcp-revit-*.zip" --dir "$env:TEMP\mcp-revit-download"
-Expand-Archive "$env:TEMP\mcp-revit-download\mcp-revit-$tag.zip" "$env:LOCALAPPDATA\mcp-revit\$tag"
+$tag = (Invoke-RestMethod https://api.github.com/repos/desarrollospaloblanco/mcp-revit/releases/latest).tag_name
+Invoke-WebRequest "https://github.com/desarrollospaloblanco/mcp-revit/releases/download/$tag/mcp-revit-$tag.zip" -OutFile "$env:TEMP\mcp-revit-$tag.zip"
+Expand-Archive "$env:TEMP\mcp-revit-$tag.zip" "$env:LOCALAPPDATA\mcp-revit\$tag"
 cd "$env:LOCALAPPDATA\mcp-revit\$tag"
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-addin.ps1 -RevitVersion 2025
 claude mcp add mcp-server-for-revit -s user -- node "$PWD\server\build\index.js"

@@ -66,13 +66,13 @@ lea el esquema nuevo de las herramientas.
 ## Encender el servicio en Revit
 
 Abrir Revit y pulsar **"Revit MCP Switch"** en el panel "Revit MCP Plugin" (pestaña
-Complementos). El servicio escucha en `localhost:8080`. Esto lo hace el usuario: no automatizarlo
+Complementos) y cerrar la ventana "Open Server (port N)": mientras sigue abierta, Revit no atiende al MCP. Cada sesión toma el primer puerto libre de 8080 a 8089. Esto lo hace el usuario: no automatizarlo
 con un arranque automático sin que él lo decida.
 
 Comprobar la conexión:
 
 ```powershell
-node scripts/revit-call.mjs get_current_view_info "{}" 30
+node scripts/revit-call.mjs manage_documents "{}" 60
 ```
 
 ## Después de cambiar el código

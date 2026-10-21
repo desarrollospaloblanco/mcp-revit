@@ -267,6 +267,11 @@
       "commandName": "manage_documents",
       "description": "List, open, create, activate and close documents",
       "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
+      "commandName": "export_plan_geometry",
+      "description": "Read-only dump of a level's plan geometry in metres",
+      "assemblyPath": "RevitMCPCommandSet.dll"
     }
   ]
 }

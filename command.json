@@ -262,6 +262,11 @@
       "commandName": "run_marks",
       "description": "Count, list, select or delete elements labelled with a run mark",
       "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
+      "commandName": "manage_documents",
+      "description": "List, open, create, activate and close documents",
+      "assemblyPath": "RevitMCPCommandSet.dll"
     }
   ]
 }

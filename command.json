@@ -322,6 +322,11 @@
       "commandName": "copy_dimensions",
       "description": "Rebuild dimensions of a plan in other plans",
       "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
+      "commandName": "edit_walls",
+      "description": "Align, snap, extend, merge, dedupe, joins, location line and flip for walls",
+      "assemblyPath": "RevitMCPCommandSet.dll"
     }
   ]
 }

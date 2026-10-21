@@ -247,6 +247,11 @@
       "commandName": "save_documents",
       "description": "Save documents and optionally synchronize them with central",
       "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
+      "commandName": "check_hosted_openings",
+      "description": "Read-only review of doors and windows against their host walls",
+      "assemblyPath": "RevitMCPCommandSet.dll"
     }
   ]
 }

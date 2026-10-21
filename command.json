@@ -242,6 +242,11 @@
       "commandName": "copy_view_camera",
       "description": "Copy the camera and crop of a 3D view to other documents",
       "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
+      "commandName": "save_documents",
+      "description": "Save documents and optionally synchronize them with central",
+      "assemblyPath": "RevitMCPCommandSet.dll"
     }
   ]
 }

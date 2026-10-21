@@ -377,6 +377,11 @@
       "commandName": "ensure_parameter",
       "description": "Create or extend a project parameter binding",
       "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
+      "commandName": "create_area_plan_from_polygons",
+      "description": "Area plan with areas from given polygons",
+      "assemblyPath": "RevitMCPCommandSet.dll"
     }
   ]
 }

@@ -171,6 +171,34 @@ Work that kept coming back as `send_code_to_revit` scripts is now a tool:
   each apartment at wall centres, areas named and typed, plus color scheme,
   tags and legend. The same apartment type in two towers becomes two areas.
 
+A second round turned about 700 earlier scripts into tools, all on one common
+base: every tool takes `documentTitle`, deletes Revit warnings and resolves
+errors that have a resolution instead of stopping on a dialog (both come back
+in the result), and can label what it creates with a hidden `runMark` that
+`run_marks` counts, selects or deletes. Inputs are metres.
+
+- **Reading the model**: `export_plan_geometry` (walls with real face lines,
+  doors and windows with hand and facing, floor loops, room boundaries, CAD by
+  layer, to JSON), `qa_review` (orphan tags and warnings across open models),
+  `manage_documents` (list, open, new, activate, close).
+- **Drawings**: `create_plan_views` (per level or duplicated, crop, view range,
+  hidden categories, grids trimmed to the crop), `create_3d_view`,
+  `create_elevation_views` (north, south, east, west sections around one box),
+  `create_sheets` and `arrange_viewports` (top-left of the title block, or a
+  model point on the same paper position on every sheet), `list_sheets`,
+  `apply_color_scheme` (scheme, colors, legend, leaderless tags),
+  `arrange_dimension_text` and `copy_dimensions`.
+- **Modelling**: `edit_walls` (align, snap, extend, merge, dedupe, joins,
+  location line, flip), `create_floors` and `replace_floor_outline`,
+  `manage_types` (layered types, change type), `edit_materials` (usage, color
+  and render appearance), `copy_elements` (to levels with correct offsets, to
+  another model, view content) and `transfer_view_templates`.
+- **Placing and fixing**: `place_families` (batch, rotation, mirror, offset,
+  on top of elements), `fix_openings` (flip, face a point, jamb, mirror,
+  rehost), `manage_rooms` (separators, clean-up, placement, values),
+  `ensure_parameter` (shared parameter bound to categories) and
+  `create_area_plan_from_polygons`.
+
 #### From PDF drawings to a model
 
 `tools/pdf-to-revit/` reads schematic-design plans printed to PDF — walls,
@@ -358,6 +386,31 @@ If using a release ZIP, the command set is pre-installed inside the plugin. For 
 | `save_documents` | Save documents, optionally synchronizing with central |
 | `check_hosted_openings` | Read-only review of doors and windows against their host walls |
 | `create_area_plan_from_rooms` | Area plan with one area per apartment from the rooms of a level |
+| `run_marks` | Count, list, select or delete what a tool run labelled |
+| `manage_documents` | List, open, create, activate and close documents |
+| `export_plan_geometry` | Read-only dump of a level's plan geometry in metres |
+| `qa_review` | Orphan tags and model warnings across open documents |
+| `create_plan_views` | Plan views per level with crop, view range and template |
+| `create_3d_view` | Saved isometric 3D view with a section box |
+| `create_elevation_views` | Orthographic facade views around one box |
+| `create_sheets` | Sheets with title block and placed views |
+| `arrange_viewports` | Align viewports top-left or by a model point |
+| `list_sheets` | Read-only inventory of sheets and viewports |
+| `apply_color_scheme` | Color fill scheme, legend and tags on a room or area plan |
+| `arrange_dimension_text` | Move dimension texts so they do not overlap |
+| `copy_dimensions` | Rebuild a plan's dimensions in other plans |
+| `edit_walls` | Align, snap, extend, merge, dedupe, joins, location line, flip |
+| `create_floors` | Floors from polygons or rooms, on one or several levels |
+| `replace_floor_outline` | New outer boundary for a floor, keeping the floor |
+| `manage_types` | List, duplicate with layers and change types |
+| `edit_materials` | Material usage, creation and color |
+| `copy_elements` | Copy to levels, to another model or between views |
+| `transfer_view_templates` | Copy view templates to other open models |
+| `place_families` | Load a family and place many instances |
+| `fix_openings` | Flip, face, jamb, mirror and rehost doors and windows |
+| `manage_rooms` | Room separators, clean-up, placement and values |
+| `ensure_parameter` | Create or extend a shared project parameter binding |
+| `create_area_plan_from_polygons` | Area plan with areas from given polygons |
 
 ## Testing
 

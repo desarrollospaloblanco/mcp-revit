@@ -312,6 +312,16 @@
       "commandName": "apply_color_scheme",
       "description": "Color fill scheme, legend and tags on a room or area plan",
       "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
+      "commandName": "arrange_dimension_text",
+      "description": "Move dimension texts so they do not overlap",
+      "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
+      "commandName": "copy_dimensions",
+      "description": "Rebuild dimensions of a plan in other plans",
+      "assemblyPath": "RevitMCPCommandSet.dll"
     }
   ]
 }

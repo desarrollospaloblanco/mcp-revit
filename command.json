@@ -257,6 +257,11 @@
       "commandName": "create_area_plan_from_rooms",
       "description": "Build an area plan with one area per apartment from rooms",
       "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
+      "commandName": "run_marks",
+      "description": "Count, list, select or delete elements labelled with a run mark",
+      "assemblyPath": "RevitMCPCommandSet.dll"
     }
   ]
 }

@@ -1,6 +1,7 @@
 using Autodesk.Revit.UI;
 using Newtonsoft.Json.Linq;
 using RevitMCPCommandSet.Commands.Common;
+using RevitMCPCommandSet.Services.Common;
 using RevitMCPCommandSet.Services.Quantification;
 using RevitMCPCommandSet.Services.Views;
 
@@ -24,6 +25,7 @@ namespace RevitMCPCommandSet.Commands.Views
 
         public override object Execute(JObject parameters, string requestId)
         {
+            var options = ToolOptions.From(parameters);
             string viewName = parameters?["viewName"]?.Value<string>();
             if (string.IsNullOrWhiteSpace(viewName))
                 throw new ArgumentException("viewName is required");
@@ -52,18 +54,18 @@ namespace RevitMCPCommandSet.Commands.Views
 
                 var views = new List<View3D>();
                 var created = new List<bool>();
+                var warnings = new List<string>();
                 foreach (Document doc in docs)
                 {
-                    using (var t = new Transaction(doc, "MCP: vista de presentación " + viewName))
+                    ToolTransaction.Run(doc, "MCP: vista de presentación " + viewName, options, warnings, () =>
                     {
-                        t.Start();
                         View3D view = PresentationViewService.GetOrCreatePerspective(doc, viewName, perspective, out bool isNew);
                         PresentationViewService.ApplyCamera(view, PresentationViewService.Point(eye), PresentationViewService.Point(target),
                             twoPoint, sectionBox, PresentationViewService.ParseStyle(style), hideImports);
-                        t.Commit();
+                        RunMarks.Set(view, options.RunMark);
                         views.Add(view);
                         created.Add(isNew);
-                    }
+                    });
                 }
 
                 if (frame != "keep")
@@ -88,7 +90,7 @@ namespace RevitMCPCommandSet.Commands.Views
                         image
                     });
                 }
-                return new { views = result };
+                return new { views = result, warnings };
             }, 600);
         }
 

@@ -3,6 +3,7 @@ using Autodesk.Revit.UI;
 using Newtonsoft.Json.Linq;
 using RevitMCPCommandSet.Commands.Common;
 using RevitMCPCommandSet.Services.Architecture;
+using RevitMCPCommandSet.Services.Common;
 using RevitMCPCommandSet.Services.Quantification;
 
 namespace RevitMCPCommandSet.Commands.Architecture
@@ -19,7 +20,6 @@ namespace RevitMCPCommandSet.Commands.Architecture
         private const double FeetToMeters = 0.3048;
         private const double SquareFeetToSquareMeters = 0.09290304;
         private const double GridFeet = 0.002 / FeetToMeters;
-        private const string Marker = "MCP area plan";
 
         public override string CommandName => "create_area_plan_from_rooms";
 
@@ -33,6 +33,7 @@ namespace RevitMCPCommandSet.Commands.Architecture
             public string TypeParameter, TypePrefix, CommonType, TypeSeparator, ColorScheme;
             public List<string> CommonValues;
             public bool Replace, Tags, Legend, IncludeHoles, HideImports;
+            public ToolOptions Tool;
         }
 
         private class Cluster
@@ -49,6 +50,7 @@ namespace RevitMCPCommandSet.Commands.Architecture
             var o = new Options
             {
                 DocumentTitle = parameters?["documentTitle"]?.Value<string>(),
+                Tool = ToolOptions.From(parameters),
                 RoomsLevel = parameters?["roomsLevel"]?.Value<string>(),
                 AreaLevel = parameters?["areaLevel"]?.Value<string>(),
                 AreaScheme = parameters?["areaScheme"]?.Value<string>() ?? "Apartamentos",
@@ -124,12 +126,14 @@ namespace RevitMCPCommandSet.Commands.Architecture
             var created = new List<object>();
             double totalM2 = 0;
             var problems = new List<string>();
+            var warnings = new List<string>();
             ViewPlan view;
             using (var t = new Transaction(doc, "MCP: plano de áreas " + o.ViewName))
             {
                 t.Start();
                 var failureOptions = t.GetFailureHandlingOptions();
-                failureOptions.SetFailuresPreprocessor(new WarningSwallower());
+                var collector = new WarningCollector(o.Tool.SwallowWarnings);
+                failureOptions.SetFailuresPreprocessor(collector);
                 t.SetFailureHandlingOptions(failureOptions);
 
                 view = GetOrCreateAreaPlan(doc, scheme, areaLevel, o);
@@ -141,7 +145,7 @@ namespace RevitMCPCommandSet.Commands.Architecture
                     XYZ a = new XYZ(l[0], l[1], z), b = new XYZ(l[2], l[3], z);
                     if (a.DistanceTo(b) < app.Application.ShortCurveTolerance) continue;
                     ModelCurve curve = doc.Create.NewAreaBoundaryLine(plane, Line.CreateBound(a, b), view);
-                    curve.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS)?.Set(Marker);
+                    RunMarks.Set(curve, o.Tool.RunMark);
                 }
                 doc.Regenerate();
 
@@ -158,6 +162,7 @@ namespace RevitMCPCommandSet.Commands.Architecture
                     Room largest = c.Rooms.OrderByDescending(r => r.Area).First();
                     XYZ p = ((LocationPoint)largest.Location).Point;
                     Area area = doc.Create.NewArea(view, new UV(p.X, p.Y));
+                    RunMarks.Set(area, o.Tool.RunMark);
                     string name = c.Common ? o.CommonName : o.NamePrefix + c.Value;
                     area.get_Parameter(BuiltInParameter.ROOM_NAME)?.Set(name);
                     area.get_Parameter(BuiltInParameter.ROOM_NUMBER)?.Set(c.Number);
@@ -207,6 +212,7 @@ namespace RevitMCPCommandSet.Commands.Architecture
 #endif
 
                 t.Commit();
+                warnings.AddRange(collector.Report());
 
                 foreach (var (area, c) in areas)
                 {
@@ -236,7 +242,8 @@ namespace RevitMCPCommandSet.Commands.Architecture
                 roomsWithoutGroup = skipped,
                 areas = created,
                 totalM2 = Math.Round(totalM2, 2),
-                problems
+                problems,
+                warnings
             };
         }
 
@@ -354,19 +361,5 @@ namespace RevitMCPCommandSet.Commands.Architecture
         private static Level FindLevel(Document doc, string name) =>
             new FilteredElementCollector(doc).OfClass(typeof(Level)).Cast<Level>().FirstOrDefault(l => l.Name == name)
             ?? throw new InvalidOperationException("No level named '" + name + "' in " + doc.Title);
-
-        /// <summary>Deletes warnings (overlapping lines, areas not enclosed) so no dialog stops the run.</summary>
-        private class WarningSwallower : IFailuresPreprocessor
-        {
-            public FailureProcessingResult PreprocessFailures(FailuresAccessor accessor)
-            {
-                foreach (FailureMessageAccessor message in accessor.GetFailureMessages())
-                {
-                    if (message.GetSeverity() == FailureSeverity.Warning)
-                        accessor.DeleteWarning(message);
-                }
-                return FailureProcessingResult.Continue;
-            }
-        }
     }
 }

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { withRevitConnection } from "../utils/ConnectionManager.js";
+import { writeOptions } from "../utils/revitTool.js";
 
 const point = z.array(z.number()).length(3);
 
@@ -34,6 +35,8 @@ export function registerSetPerspectiveViewTool(server: McpServer) {
       hideImports: z.boolean().optional().describe("Hide linked/imported CAD. Defaults to true."),
       exportWidth: z.number().int().min(400).max(15000).optional().describe("Export the final PNG at this width."),
       outputFolder: z.string().optional().describe("Folder for the PNG; defaults to %APPDATA%\\RevitMCP\\exports."),
+      runMark: writeOptions.runMark,
+      swallowWarnings: writeOptions.swallowWarnings,
     },
     async (args) => {
       try {

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { withRevitConnection } from "../utils/ConnectionManager.js";
+import { writeOptions } from "../utils/revitTool.js";
 
 export function registerCopyViewCameraTool(server: McpServer) {
   server.tool(
@@ -13,6 +14,8 @@ export function registerCopyViewCameraTool(server: McpServer) {
       targetDocuments: z.array(z.string()).min(1).describe("Titles of the documents to copy to."),
       sourceDocument: z.string().optional().describe("Document of the source view; defaults to the active one."),
       copySectionBox: z.boolean().optional().describe("Also copy the section box. Defaults to true."),
+      runMark: writeOptions.runMark,
+      swallowWarnings: writeOptions.swallowWarnings,
     },
     async (args) => {
       try {

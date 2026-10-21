@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { withRevitConnection } from "../utils/ConnectionManager.js";
+import { writeOptions } from "../utils/revitTool.js";
 
 export function registerCreateAreaPlanFromRoomsTool(server: McpServer) {
   server.tool(
@@ -32,7 +33,7 @@ export function registerCreateAreaPlanFromRoomsTool(server: McpServer) {
       includeHoles: z.boolean().optional().describe("Keep columns and shafts inside apartments as holes. Defaults to false."),
       hideImports: z.boolean().optional().describe("Hide imported CAD in the plan. Defaults to true."),
       replace: z.boolean().optional().describe("Rebuild an existing view of the same name. Defaults to true."),
-      documentTitle: z.string().optional().describe("Document; defaults to the active one."),
+      ...writeOptions,
     },
     async (args) => {
       try {

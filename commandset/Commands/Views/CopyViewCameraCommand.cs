@@ -1,6 +1,7 @@
 using Autodesk.Revit.UI;
 using Newtonsoft.Json.Linq;
 using RevitMCPCommandSet.Commands.Common;
+using RevitMCPCommandSet.Services.Common;
 using RevitMCPCommandSet.Services.Quantification;
 
 namespace RevitMCPCommandSet.Commands.Views
@@ -20,6 +21,8 @@ namespace RevitMCPCommandSet.Commands.Views
 
         public override object Execute(JObject parameters, string requestId)
         {
+            var options = ToolOptions.From(parameters);
+            var warnings = new List<string>();
             string sourceTitle = parameters?["sourceDocument"]?.Value<string>();
             string viewKey = parameters?["view"]?.Value<string>();
             if (string.IsNullOrWhiteSpace(viewKey))
@@ -40,9 +43,8 @@ namespace RevitMCPCommandSet.Commands.Views
                 foreach (Document target in SetPerspectiveViewCommand.ResolveDocuments(app, targets))
                 {
                     if (target.Equals(source)) continue;
-                    using (var t = new Transaction(target, "MCP: copiar cámara " + from.Name))
+                    ToolTransaction.Run(target, "MCP: copiar cámara " + from.Name, options, warnings, () =>
                     {
-                        t.Start();
                         View3D to = Services.Views.PresentationViewService.GetOrCreatePerspective(target, from.Name, from.IsPerspective, out bool created);
                         if (to.IsPerspective != from.IsPerspective)
                             throw new InvalidOperationException(from.Name + " in " + target.Title + " is not the same kind of 3D view (perspective vs isometric)");
@@ -66,11 +68,11 @@ namespace RevitMCPCommandSet.Commands.Views
                             to.IsSectionBoxActive = from.IsSectionBoxActive;
                             if (from.IsSectionBoxActive) to.SetSectionBox(from.GetSectionBox());
                         }
-                        t.Commit();
+                        RunMarks.Set(to, options.RunMark);
                         results.Add(new { document = target.Title, view = to.Name, viewId = Utils.ElementIdExtensions.GetValue(to.Id), created });
-                    }
+                    });
                 }
-                return new { source = source.Title, view = from.Name, copied = results };
+                return new { source = source.Title, view = from.Name, copied = results, warnings };
             }, 120);
         }
 

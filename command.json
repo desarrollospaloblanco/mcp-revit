@@ -362,6 +362,11 @@
       "commandName": "place_families",
       "description": "Load a family and place many instances",
       "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
+      "commandName": "fix_openings",
+      "description": "Flip, face, jamb, mirror and rehost doors and windows",
+      "assemblyPath": "RevitMCPCommandSet.dll"
     }
   ]
 }

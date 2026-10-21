@@ -367,6 +367,11 @@
       "commandName": "fix_openings",
       "description": "Flip, face, jamb, mirror and rehost doors and windows",
       "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
+      "commandName": "manage_rooms",
+      "description": "Room separators, clean-up, placement and parameters",
+      "assemblyPath": "RevitMCPCommandSet.dll"
     }
   ]
 }

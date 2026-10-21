@@ -327,6 +327,16 @@
       "commandName": "edit_walls",
       "description": "Align, snap, extend, merge, dedupe, joins, location line and flip for walls",
       "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
+      "commandName": "create_floors",
+      "description": "Floors from polygons or rooms, optionally on several levels",
+      "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
+      "commandName": "replace_floor_outline",
+      "description": "Replace the outer boundary of a floor keeping the floor",
+      "assemblyPath": "RevitMCPCommandSet.dll"
     }
   ]
 }

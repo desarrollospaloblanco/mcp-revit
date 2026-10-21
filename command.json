@@ -357,6 +357,11 @@
       "commandName": "transfer_view_templates",
       "description": "Copy view templates to other open models",
       "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
+      "commandName": "place_families",
+      "description": "Load a family and place many instances",
+      "assemblyPath": "RevitMCPCommandSet.dll"
     }
   ]
 }

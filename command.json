@@ -277,6 +277,21 @@
       "commandName": "qa_review",
       "description": "Orphan tags and model warnings across open documents",
       "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
+      "commandName": "create_plan_views",
+      "description": "Create or update plan views per level with crop, range and template",
+      "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
+      "commandName": "create_3d_view",
+      "description": "Saved isometric 3D view with a section box",
+      "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
+      "commandName": "create_elevation_views",
+      "description": "Orthographic facade views from sections around a box",
+      "assemblyPath": "RevitMCPCommandSet.dll"
     }
   ]
 }

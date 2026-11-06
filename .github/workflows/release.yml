@@ -83,7 +83,7 @@ jobs:
           Copy-Item server/package.json, server/package-lock.json "$stage/server"
 
           Copy-Item scripts/install-addin.ps1, scripts/revit-call.mjs, scripts/run-code.mjs "$stage/scripts"
-          Copy-Item tools/pdf-to-revit "$stage/tools" -Recurse
+          Copy-Item tools/pdf-to-revit, tools/rebar-report "$stage/tools" -Recurse
           Copy-Item .claude/skills "$stage/.claude" -Recurse
           Copy-Item command.json, README.md, LICENSE $stage
           Set-Content "$stage/VERSION" $version

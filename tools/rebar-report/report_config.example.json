@@ -1,0 +1,27 @@
+{
+  "takeoff": "C:/Users/<usuario>/AppData/Roaming/RevitMCP/takeoffs/Sherman_acero_20261030_1800.json",
+  "project": "Persea de Arrazola",
+  "name": "Sherman",
+  "code": "PDA-SHE",
+  "model": "PDA-PL-DPB-Sherman-MOD-Es-V01",
+  "design": "Terracosa · Ing. Rosada",
+  "author": "JB",
+  "date": "2026-10-30",
+  "subtitle": "Despiece y cuantificación del dúplex modelado barra por barra en Revit.",
+  "levelNames": { "N1": "Nivel 1", "N2": "Nivel 2", "N3": "Nivel 3" },
+  "criteria": [
+    ["Sin traslapes en nudos", "El empalme queda completo en la mitad central del claro y a más de 2h del apoyo (ACI 318-19)."],
+    ["Bastones corridos", "Las barras de borde de muro suben de la cimentación al último nivel sin cortarse en la losa."]
+  ],
+  "rfi": [
+    ["Eje 6, casa derecha", "La elevación no dibuja bastones de ventana; se cuantificó como la casa izquierda."]
+  ],
+  "images": {
+    "full": "C:/ruta/ACERO - 3D completo.png",
+    "laps": "C:/ruta/ACERO - Zonas de traslape.png"
+  },
+  "output": {
+    "folder": "C:/ruta/Cuantificación acero",
+    "basename": "Sherman - Acero de refuerzo 2026-10-30"
+  }
+}

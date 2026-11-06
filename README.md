@@ -199,6 +199,32 @@ in the result), and can label what it creates with a hidden `runMark` that
   `ensure_parameter` (shared parameter bound to categories) and
   `create_area_plan_from_polygons`.
 
+#### Reinforcing steel
+
+Three tools model and quantify native rebar and welded mesh the way the DPB
+steel take-offs are done (Sherman, Lincoln and Hamilton at Persea de Arrazola):
+
+- `rebar_by_type` reinforces columns, beams, tie beams, isolated and strip
+  footings, walls and slabs from rules keyed by type mark (e.g. `C-B`: 8#6
+  with #3@0.10 ties, hooked into the footing below).
+- `place_rebar` places what only the drawings tell (bars drawn in
+  elevations, slab bastones, dowels, stairs) from polylines in metres.
+- Both cut bars longer than the commercial length (`stockLength` 6, 9 or 12 m)
+  into pieces joined by laps of 40 db, keep every splice out of the joints
+  (middle of the clear span, 2h from beam supports; slabs are the joints of a
+  vertical bar), alternate splices between the sets of an element, and draw a
+  magenta marker grouped as `Traslape T001 - ...` on every lap.
+- `rebar_takeoff` weighs everything in quintals of 100 lb, splits it by a
+  dividing line (the party wall of a duplex) and by level, writes the
+  `MCP Acero` parameters, builds the schedules ACERO 01-05 and the 3D views
+  `ACERO - 3D completo` and `ACERO - Zonas de traslape`, and exports JSON and
+  CSV with the cutting of commercial bars. Totals come rounded up to whole
+  quintals, each from its exact value.
+
+`tools/rebar-report/` turns that JSON into the Excel take-off, a
+self-contained HTML report and a DPB deck; see its
+[README](tools/rebar-report/README.md).
+
 #### From PDF drawings to a model
 
 `tools/pdf-to-revit/` reads schematic-design plans printed to PDF — walls,
@@ -429,6 +455,9 @@ If using a release ZIP, the command set is pre-installed inside the plugin. For 
 | `manage_rooms` | Room separators, clean-up, placement and values |
 | `ensure_parameter` | Create or extend a shared project parameter binding |
 | `create_area_plan_from_polygons` | Area plan with areas from given polygons |
+| `place_rebar` | Rebar and mesh from polylines, cut to 6, 9 or 12 m with laps away from joints |
+| `rebar_by_type` | Reinforcement of columns, beams, footings, walls and slabs by type mark |
+| `rebar_takeoff` | Steel take-off in quintals with schedules, 3D views and JSON/CSV export |
 
 ## Testing
 

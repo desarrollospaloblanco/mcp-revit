@@ -382,6 +382,21 @@
       "commandName": "create_area_plan_from_polygons",
       "description": "Area plan with areas from given polygons",
       "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
+      "commandName": "place_rebar",
+      "description": "Bar sets and welded mesh from geometry, cut to 6, 9 or 12 m with laps away from joints",
+      "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
+      "commandName": "rebar_by_type",
+      "description": "Reinforcement of columns, beams, footings, walls and slabs from rules by type mark",
+      "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
+      "commandName": "rebar_takeoff",
+      "description": "Steel take-off in quintals with schedules, 3D views and JSON/CSV export",
+      "assemblyPath": "RevitMCPCommandSet.dll"
     }
   ]
 }

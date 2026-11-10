@@ -198,7 +198,7 @@ namespace RevitMCPCommandSet.Services.Rebar
                     rebar.GetShapeDrivenAccessor().SetLayoutAsNumberWithSpacing(p.Count, Metric.Ft(p.Spacing), true, true, true);
                 RebarParameters.Set(rebar, RebarParameters.Element, p.Element);
                 RebarParameters.Set(rebar, RebarParameters.Group, p.Group);
-                RebarParameters.Set(rebar, RebarParameters.Size, RebarCatalog.Display(p.Size));
+                RebarParameters.Set(rebar, RebarParameters.Size, p.Size);
                 RebarParameters.Set(rebar, RebarParameters.Description, p.Description);
                 RebarParameters.Set(rebar, RebarParameters.Lap, p.Laps);
                 if (p.Parameters != null)

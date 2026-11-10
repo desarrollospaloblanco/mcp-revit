@@ -295,7 +295,10 @@ namespace RevitMCPCommandSet.Services.Rebar
                 {
                     RebarParameters.Set(e, RebarParameters.CutLength, row.CutLength);
                     RebarParameters.Set(e, RebarParameters.PieceMark, row.PieceMark);
-                    if (string.IsNullOrEmpty(Text(e, RebarParameters.Size))) RebarParameters.Set(e, RebarParameters.Size, RebarCatalog.Display(row.Size));
+                    // "Ø 6.2 mm" written by earlier versions becomes the key the take-off and its tables use ("ø6.2")
+                    string size = Text(e, RebarParameters.Size);
+                    if (string.IsNullOrEmpty(size) || (size != row.Size && RebarCatalog.TryKey(size, out string key) && key == row.Size))
+                        RebarParameters.Set(e, RebarParameters.Size, row.Size);
                 }
                 else
                 {
@@ -450,7 +453,7 @@ namespace RevitMCPCommandSet.Services.Rebar
             {
                 var cells = new List<string>
                 {
-                    r.Id.ToString(), r.Kind, Csv(r.Element), Csv(r.Group), Csv(r.Description), Csv(r.Kind == "bar" ? RebarCatalog.Display(r.Size) : r.Size),
+                    r.Id.ToString(), r.Kind, Csv(r.Element), Csv(r.Group), Csv(r.Description), Csv(r.Size),
                     r.PieceMark ?? "", r.Laps ?? "", r.Count.ToString(), r.CutLength.ToString("0.###", inv), r.TotalLength.ToString("0.###", inv),
                     r.Area.ToString("0.###", inv), r.AreaWithLaps.ToString("0.###", inv), r.Kg.ToString("0.###", inv), r.Qq.ToString("0.#####", inv)
                 };

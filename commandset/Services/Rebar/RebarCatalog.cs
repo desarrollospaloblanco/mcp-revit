@@ -57,6 +57,15 @@ namespace RevitMCPCommandSet.Services.Rebar
             throw new ArgumentException("Unknown bar size '" + name + "'; use #3, No.4, ø7.2 or 12mm");
         }
 
+        /// <summary>Key of a size text ("Ø 6.2 mm", "ø6.2", "No. 4"), or false when it is not a bar size.</summary>
+        public static bool TryKey(string name, out string key)
+        {
+            key = null;
+            if (string.IsNullOrWhiteSpace(name)) return false;
+            try { key = Key(name); return true; }
+            catch (Exception ex) when (ex is ArgumentException || ex is FormatException || ex is OverflowException) { return false; }
+        }
+
         public static bool IsImperial(string key) => key.StartsWith("#");
 
         public static double DiameterMm(string key)
@@ -91,7 +100,7 @@ namespace RevitMCPCommandSet.Services.Rebar
             return Math.Max(0.08, Math.Ceiling(12 * DiameterMm(key) / 1000 / 0.05) * 0.05);
         }
 
-        /// <summary>Display name used in parameters and schedules: "#4" or "Ø 7.2 mm".</summary>
+        /// <summary>Display name for lap markers: "#4" or "Ø 7.2 mm". Parameters and schedules carry the key ("#4", "ø7.2").</summary>
         public static string Display(string key) => IsImperial(key) ? key : "Ø " + key.Substring(1) + " mm";
 
         /// <summary>Bar type name created when the model has none of that size: "No.4" or "7.2mm".</summary>
@@ -114,8 +123,9 @@ namespace RevitMCPCommandSet.Services.Rebar
             try { return Key(t.Name); }
             catch (Exception) { }
             double mm = TypeDiameterMm(t);
+            // tight enough that a 6.2 mm wire is not taken for a #2 (6.35 mm)
             foreach (var kv in ImperialMm)
-                if (Math.Abs(kv.Value - mm) < 0.3) return "#" + kv.Key;
+                if (Math.Abs(kv.Value - mm) < 0.1) return "#" + kv.Key;
             return "ø" + Math.Round(mm, 1).ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
         }
 

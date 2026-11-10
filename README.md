@@ -18,6 +18,84 @@ preserved verbatim in [LICENSE](./LICENSE). The fork was taken as a snapshot
 rather than a git clone, so the upstream commit history is not present here;
 this section is the record of where the code came from.
 
+### Tools added by Desarrollos Palo Blanco
+
+The upstream project brought 26 tools. This fork, built by Javier
+Borrayo at Desarrollos Palo Blanco since 31 August 2026, adds the 63 below,
+so the server exposes 89 tools. Each one replaced work that was being
+done by hand or with `send_code_to_revit` scripts.
+
+| Tool | Added in | What it does |
+| --- | --- | --- |
+| `get_parameter` | Parameters (2026-09) | Read one parameter, or every parameter, from an element |
+| `modify_element` | Parameters (2026-09) | Write many parameters on a single element |
+| `set_parameter` | Parameters (2026-09) | Write one parameter across many elements |
+| `normalize_parameter_text` | Parameters (2026-09) | Force one text case on a parameter across types, instances and materials |
+| `duplicate_schedules_with_parameter` | Parameters (2026-09) | Duplicate schedules for another parameter value, retargeting their filter |
+| `set_schedule_parameter_filter` | Parameters (2026-09) | Add or update a parameter filter on schedules without touching visible columns |
+| `create_foundation_earthworks` | Quantification (2026-09) | Excavation and backfill masses for foundations, as Toposolids (Revit 2024+) |
+| `assign_bim_level` | Quantification (2026-09) | Write the level a slab or beam roofs, which is the one it is quantified under |
+| `classify_elements` | Quantification (2026-09) | Assign Assembly Code by rule and derive a missing Type Mark from the type name |
+| `analyze_clashes` | Quantification (2026-09) | Find structure that overlaps without being joined, and colour it |
+| `copy_ramps_as_floors` | Quantification (2026-09) | Replicate ramps as sloped floors so they land in a slab take-off |
+| `create_grid_railings` | Quantification (2026-09) | Trace the grid with railings so the setting-out run can be measured |
+| `format_schedules` | Quantification (2026-09) | Rename schedule headings and apply one consistent look |
+| `build_model_from_spec` | Model from data (2026-09) | Build levels, grids, columns, walls, beams and floors from a spec in metres |
+| `export_view_image` | Model from data (2026-09) | Export a floor plan, a named view or the 3D view to PNG for checking |
+| `set_execution_policy` | Execution control and agent aids (2026-10) | Apply changes, ask in Revit, or keep nothing (auto, ask, readonly) |
+| `get_run_history` | Execution control and agent aids (2026-10) | List the recorded send_code_to_revit runs |
+| `get_run` | Execution control and agent aids (2026-10) | Read one recorded send_code_to_revit run |
+| `lookup_revit_api` | Execution control and agent aids (2026-10) | Signatures and enum values from the running Revit |
+| `capture_view` | Execution control and agent aids (2026-10) | PNG of a view or of a temporary 3D view, returned as an image |
+| `mep_review` | Execution control and agent aids (2026-10) | Read-only MEP model review |
+| `list_revit_instances` | Execution control and agent aids (2026-10) | List the Revit sessions listening on ports 8080 to 8089 |
+| `select_revit_instance` | Execution control and agent aids (2026-10) | Choose the Revit session the tools talk to |
+| `set_dialog_guard` | Execution control and agent aids (2026-10) | Switch on or off the guard that answers blocking Revit dialogs |
+| `get_dialog_log` | Execution control and agent aids (2026-10) | Log of the Revit dialogs the guard answered |
+| `set_perspective_view` | Recurring work, first round (2026-10) | Presentation perspective with the same camera and crop across documents |
+| `copy_view_camera` | Recurring work, first round (2026-10) | Copy a 3D view's camera and crop to other documents |
+| `export_views` | Recurring work, first round (2026-10) | Export several views from open documents to PNG |
+| `save_documents` | Recurring work, first round (2026-10) | Save documents, optionally synchronizing with central |
+| `check_hosted_openings` | Recurring work, first round (2026-10) | Read-only review of doors and windows against their host walls |
+| `create_area_plan_from_rooms` | Recurring work, first round (2026-10) | Area plan with one area per apartment from the rooms of a level |
+| `run_marks` | Recurring work, second round (2026-10) | Count, list, select or delete what a tool run labelled |
+| `manage_documents` | Recurring work, second round (2026-10) | List, open, create, activate, close and save a copy of documents |
+| `export_plan_geometry` | Recurring work, second round (2026-10) | Read-only dump of a level's plan geometry in metres |
+| `qa_review` | Recurring work, second round (2026-10) | Orphan tags and model warnings across open documents |
+| `create_plan_views` | Recurring work, second round (2026-10) | Plan views per level with crop, view range and template |
+| `create_3d_view` | Recurring work, second round (2026-10) | Saved isometric 3D view with a section box |
+| `create_elevation_views` | Recurring work, second round (2026-10) | Orthographic facade views around one box, and sections at a given coordinate |
+| `create_sheets` | Recurring work, second round (2026-10) | Sheets with title block and placed views |
+| `arrange_viewports` | Recurring work, second round (2026-10) | Align viewports top-left or by a model point |
+| `list_sheets` | Recurring work, second round (2026-10) | Read-only inventory of sheets and viewports |
+| `apply_color_scheme` | Recurring work, second round (2026-10) | Color fill scheme, legend and tags on a room or area plan |
+| `arrange_dimension_text` | Recurring work, second round (2026-10) | Move dimension texts so they do not overlap |
+| `copy_dimensions` | Recurring work, second round (2026-10) | Rebuild a plan's dimensions in other plans |
+| `edit_walls` | Recurring work, second round (2026-10) | Align, snap, extend, merge, dedupe, joins, join hierarchy, location line, flip |
+| `create_floors` | Recurring work, second round (2026-10) | Floors from polygons or rooms, on one or several levels |
+| `replace_floor_outline` | Recurring work, second round (2026-10) | New outer boundary for a floor, keeping the floor |
+| `manage_types` | Recurring work, second round (2026-10) | List, duplicate with layers and change types |
+| `edit_materials` | Recurring work, second round (2026-10) | Material usage, creation and color |
+| `copy_elements` | Recurring work, second round (2026-10) | Copy to levels, to another model or between views |
+| `transfer_view_templates` | Recurring work, second round (2026-10) | Copy view templates to other open models |
+| `place_families` | Recurring work, second round (2026-10) | Load a family and place many instances |
+| `fix_openings` | Recurring work, second round (2026-10) | Flip, face, jamb, mirror and rehost doors and windows |
+| `manage_rooms` | Recurring work, second round (2026-10) | Room separators, clean-up, placement and values |
+| `ensure_parameter` | Recurring work, second round (2026-10) | Create or extend a shared project parameter binding |
+| `create_area_plan_from_polygons` | Recurring work, second round (2026-10) | Area plan with areas from given polygons |
+| `place_rebar` | Reinforcing steel (2026-11) | Rebar and mesh from polylines, cut to 6, 9 or 12 m with laps away from joints |
+| `rebar_by_type` | Reinforcing steel (2026-11) | Reinforcement of columns, beams, footings, walls and slabs by type mark |
+| `rebar_takeoff` | Reinforcing steel (2026-11) | Steel take-off in quintals with schedules, 3D views and JSON/CSV export |
+| `arrange_datums` | PDS session (2026-11) | Level and grid lines, heads and crop in elevations and sections |
+| `set_view_graphics` | PDS session (2026-11) | Solid cut, colours by category and rule, hidden categories, copied overrides |
+| `clean_section_cut` | PDS session (2026-11) | Hide in a section what its plane cuts lengthwise |
+| `shift_levels` | PDS session (2026-11) | Move levels from an elevation by one offset and rename them with their views |
+
+Upstream tools this fork extended rather than replaced: `send_code_to_revit`
+(one undo step per run, dry run, change summary, execution policy, run history
+and `documentTitle`). The 26 upstream tools are listed with the rest in
+[Supported Tools](#supported-tools).
+
 ### What this fork adds
 
 Three commands for reading and writing element parameters, so callers no longer

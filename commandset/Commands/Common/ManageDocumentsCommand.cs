@@ -7,8 +7,8 @@ namespace RevitMCPCommandSet.Commands.Common
 {
     /// <summary>
     /// Open documents and their state, plus opening a file, creating a blank project, activating a
-    /// document and closing one. Closing never saves; a modified document is closed only when the
-    /// caller says the changes may be discarded.
+    /// document, closing one and saving a copy under a new name. Closing never saves; a modified
+    /// document is closed only when the caller says the changes may be discarded.
     /// </summary>
     public class ManageDocumentsCommand : DelegateCommand
     {
@@ -47,8 +47,10 @@ namespace RevitMCPCommandSet.Commands.Common
                         return List(app);
                     case "close":
                         return Close(app, title, discard);
+                    case "saveas":
+                        return SaveAs(app, title, path);
                     default:
-                        throw new ArgumentException("action must be list, open, new, activate or close");
+                        throw new ArgumentException("action must be list, open, new, activate, close or saveAs");
                 }
             }, timeout);
         }
@@ -103,6 +105,38 @@ namespace RevitMCPCommandSet.Commands.Common
                 ? app.Application.NewProjectDocument(UnitSystem.Metric)
                 : app.Application.NewProjectDocument(template);
             return new { created = doc.Title, note = "Unsaved and in the background; save it with Save As in Revit or close it with discardChanges" };
+        }
+
+        /// <summary>
+        /// Saves the document under a new file, as when a model is copied to start a new version.
+        /// Revit then keeps working on the new file and the old one stays on disk as it was saved,
+        /// so a document with unsaved changes is refused: they would only reach the copy.
+        /// </summary>
+        private static object SaveAs(UIApplication app, string title, string path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+                throw new ArgumentException("path is required for saveAs: a full path, or a file name next to the current file");
+            Document doc = ToolDocuments.Resolve(app, title);
+            if (string.IsNullOrEmpty(doc.PathName))
+                throw new InvalidOperationException(doc.Title + " has never been saved; give it a first name in Revit");
+            if (doc.IsWorkshared)
+                throw new InvalidOperationException(doc.Title + " is workshared; make the copy with Save As in Revit, which handles central and worksets");
+            if (doc.IsModified)
+                throw new InvalidOperationException(doc.Title + " has unsaved changes; save it first (save_documents) so the original keeps them");
+
+            string extension = doc.IsFamilyDocument ? ".rfa" : ".rvt";
+            string target = Path.IsPathRooted(path) ? path : Path.Combine(Path.GetDirectoryName(doc.PathName), path);
+            if (!target.EndsWith(extension, StringComparison.OrdinalIgnoreCase))
+                target += extension;
+            target = Path.GetFullPath(target);
+            if (File.Exists(target))
+                throw new InvalidOperationException("A file already exists at " + target + "; choose another name");
+            if (!Directory.Exists(Path.GetDirectoryName(target)))
+                throw new InvalidOperationException("The folder " + Path.GetDirectoryName(target) + " does not exist");
+
+            string original = doc.PathName;
+            doc.SaveAs(target, new SaveAsOptions { OverwriteExistingFile = false });
+            return new { original, saved = doc.PathName, title = doc.Title, note = "Revit now works on the copy; the original file is unchanged" };
         }
 
         private static object Close(UIApplication app, string title, bool discard)

@@ -199,6 +199,29 @@ in the result), and can label what it creates with a hidden `runMark` that
   `ensure_parameter` (shared parameter bound to categories) and
   `create_area_plan_from_polygons`.
 
+A third round came from the PDS tower session (91 scripts, 10 of them
+failed); the report is `docs/herramientas-faltantes-pds.html`.
+
+- **Presentation drawings**: `create_elevation_views` also cuts `sections`
+  exactly on x = at or y = at; `arrange_datums` runs level and grid lines across
+  the building in elevations and sections, places their heads and widens the
+  crop so the heads fit; `set_view_graphics` paints cut elements solid, colours
+  surfaces by category and by rules (type, level elevation, plan region, first
+  match wins), hides categories and copies overrides between views, in several
+  models at once; `clean_section_cut` hides what a section cuts lengthwise
+  (walls parallel to the cut plane, and columns or piles in a given region) in
+  that view only, and can undo just what it hid.
+- **Model edits**: `shift_levels` raises or lowers every level from an
+  elevation by one offset and renames levels with their plan views, checking
+  clashes first and listing the walls and columns that will not follow;
+  `edit_walls` gains `hierarchy` (concrete over block over drywall by type name,
+  or custom ranks).
+- **Documents and scripts**: `manage_documents` gains `saveAs` (a copy as a new
+  version, never overwriting); `send_code_to_revit` takes `documentTitle`, so a
+  script works on a model that is not the active one without looking it up.
+  The server now rejects parameter names a tool does not declare instead of
+  silently using the defaults.
+
 #### Reinforcing steel
 
 Three tools model and quantify native rebar and welded mesh the way the DPB
@@ -419,7 +442,7 @@ If using a release ZIP, the command set is pre-installed inside the plugin. For 
 | `store_project_data` | Store project metadata in local database |
 | `store_room_data` | Store room metadata in local database |
 | `query_stored_data` | Query stored project and room data |
-| `send_code_to_revit` | Send C# code to Revit to execute |
+| `send_code_to_revit` | Send C# code to Revit to execute, on the active document or one chosen by title |
 | `say_hello` | Display a greeting dialog in Revit (connection test) |
 | `get_parameter` | Read one parameter, or every parameter, from an element |
 | `modify_element` | Write many parameters on a single element |
@@ -446,19 +469,23 @@ If using a release ZIP, the command set is pre-installed inside the plugin. For 
 | `check_hosted_openings` | Read-only review of doors and windows against their host walls |
 | `create_area_plan_from_rooms` | Area plan with one area per apartment from the rooms of a level |
 | `run_marks` | Count, list, select or delete what a tool run labelled |
-| `manage_documents` | List, open, create, activate and close documents |
+| `manage_documents` | List, open, create, activate, close and save a copy of documents |
 | `export_plan_geometry` | Read-only dump of a level's plan geometry in metres |
 | `qa_review` | Orphan tags and model warnings across open documents |
 | `create_plan_views` | Plan views per level with crop, view range and template |
 | `create_3d_view` | Saved isometric 3D view with a section box |
-| `create_elevation_views` | Orthographic facade views around one box |
+| `create_elevation_views` | Orthographic facade views around one box, and sections at a given coordinate |
+| `arrange_datums` | Level and grid lines, heads and crop in elevations and sections |
+| `set_view_graphics` | Solid cut, colours by category and rule, hidden categories, copied overrides |
+| `clean_section_cut` | Hide in a section what its plane cuts lengthwise |
 | `create_sheets` | Sheets with title block and placed views |
 | `arrange_viewports` | Align viewports top-left or by a model point |
 | `list_sheets` | Read-only inventory of sheets and viewports |
 | `apply_color_scheme` | Color fill scheme, legend and tags on a room or area plan |
 | `arrange_dimension_text` | Move dimension texts so they do not overlap |
 | `copy_dimensions` | Rebuild a plan's dimensions in other plans |
-| `edit_walls` | Align, snap, extend, merge, dedupe, joins, location line, flip |
+| `edit_walls` | Align, snap, extend, merge, dedupe, joins, join hierarchy, location line, flip |
+| `shift_levels` | Move levels from an elevation by one offset and rename them with their views |
 | `create_floors` | Floors from polygons or rooms, on one or several levels |
 | `replace_floor_outline` | New outer boundary for a floor, keeping the floor |
 | `manage_types` | List, duplicate with layers and change types |

@@ -294,6 +294,11 @@
       "assemblyPath": "RevitMCPCommandSet.dll"
     },
     {
+      "commandName": "clean_section_cut",
+      "description": "Hide what a section cuts lengthwise (walls on the cut plane, elements crossed in a region) in that view only",
+      "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
       "commandName": "create_sheets",
       "description": "Create sheets with title block and placed views",
       "assemblyPath": "RevitMCPCommandSet.dll"

@@ -29,7 +29,7 @@ export function registerRebarByTypeTool(server: McpServer) {
     "rebar_by_type",
     "Reinforce the concrete of the model from rules keyed by type mark or type name, reading each element's solid. kinds: " +
       "column (longitudinal bars around the section, hooked into the footing below, closed ties and cross-ties), beam " +
-      "(top/middle/bottom bars extended and hooked at the ends, closed stirrups or links; also tie beams), footing (bottom " +
+      "(top/middle/bottom bars anchored into the supports and hooked at the ends, closed stirrups or links; also tie beams), footing (bottom " +
       "mats both ways with hooks up), stripFooting (longitudinal bars over transverse U bars), wallMesh and slabMesh (fabric " +
       "areas on the wall side or slab top, one or two layers). Each element takes the first rule that matches. Then it places " +
       "the steel like place_rebar: pieces of 6, 9 or 12 m, laps of 40 db away from joints, lap markers. Reinforcement that only " +
@@ -62,7 +62,13 @@ export function registerRebarByTypeTool(server: McpServer) {
             stirrups: barSpacing
               .extend({ shape: z.enum(["closed", "link"]).optional(), start: z.number().optional() })
               .optional(),
-            extend: z.number().optional().describe("beam bars past the ends of the beam solid, metres. Defaults to 0.15."),
+            extend: z
+              .number()
+              .optional()
+              .describe(
+                "beam bars past the ends of the beam solid, metres, only into a wall, column or beam that receives them (end cover kept from its far face); " +
+                  "with no support they stop inside the beam at the end cover. Defaults to 0.15."
+              ),
             endHooks: z.boolean().optional().describe("beam bars hooked at the ends (top down, bottom up). Defaults to true."),
             bottomX: barSpacing.optional().describe("footing mat along the footing; bottomY across. Spacing defaults to 0.15."),
             bottomY: barSpacing.optional(),

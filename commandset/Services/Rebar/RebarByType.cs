@@ -17,6 +17,10 @@ namespace RevitMCPCommandSet.Services.Rebar
         private readonly Document _doc;
         private readonly RebarCatalog _cat;
         private readonly List<Element> _foundations;
+        private RebarConcrete _concrete;
+
+        /// <summary>The concrete of the model, read on first use; the commands reuse it for the inside-concrete check.</summary>
+        public RebarConcrete Concrete => _concrete ?? (_concrete = new RebarConcrete(_doc));
 
         public List<BarSpec> Bars { get; } = new List<BarSpec>();
         public List<MeshSpec> Meshes { get; } = new List<MeshSpec>();
@@ -272,12 +276,16 @@ namespace RevitMCPCommandSet.Services.Rebar
                              : layer == "bottom" ? f.Bottom + cov.Bottom + dbS + Db(size) / 2
                              : (f.Top + f.Bottom) / 2;
                     double off = count > 1 ? f.Width / 2 - cov.Side - dbS - Db(size) / 2 : 0;
-                    double hk = endHooks ? (layer == "bottom" ? 1 : -1) * (b["hook"]?.Value<double>() ?? _cat.Hook(size)) : 0;
+                    double up = layer == "bottom" ? 1 : -1;
+                    double hook = endHooks ? b["hook"]?.Value<double>() ?? _cat.Hook(size) : 0;
+                    double hookCover = up > 0 ? cov.Top : cov.Bottom;
+                    var (start, h0) = BeamEnd(c, f, false, off, z, ext, cov.Ends, hook, up, hookCover, size);
+                    var (end, h1) = BeamEnd(c, f, true, off, z, ext, cov.Ends, hook, up, hookCover, size);
                     var pts = new List<XYZ>();
-                    if (hk != 0) pts.Add(f.P(-ext, -off, z + hk));
-                    pts.Add(f.P(-ext, -off, z));
-                    pts.Add(f.P(f.Length + ext, -off, z));
-                    if (hk != 0) pts.Add(f.P(f.Length + ext, -off, z + hk));
+                    if (h0 > 0) pts.Add(f.P(start, -off, z + up * h0));
+                    pts.Add(f.P(start, -off, z));
+                    pts.Add(f.P(end, -off, z));
+                    if (h1 > 0) pts.Add(f.P(end, -off, z + up * h1));
                     string name = layer == "top" ? "superior" : layer == "bottom" ? "inferior" : "intermedia";
                     Add(c, $"{count}{size} {name} ({c.Tag})", size, pts, f.V, count, count > 1 ? 2 * off / (count - 1) : 0);
                 }
@@ -293,6 +301,36 @@ namespace RevitMCPCommandSet.Services.Rebar
             else
                 Add(c, $"Estribo {stirrup}@{sp:0.00} ({c.Tag})", stirrup,
                     new List<XYZ> { f.P(s0, -hb, zb), f.P(s0, hb, zb), f.P(s0, hb, zt), f.P(s0, -hb, zt), f.P(s0, -hb, zb) }, f.U, n, spacing, true);
+        }
+
+        /// <summary>
+        /// Where a beam bar ends (s along the beam) and the hook leg it can take there. The bar runs on past the
+        /// end of the beam, up to ext, only as far as a wall, column or beam receives it, keeping the end cover
+        /// from the far face; with no support it stops inside the beam at the end cover. The hook leg is as long
+        /// as the concrete under (or over) the bar allows, keeping the cover, and is dropped below 4 db.
+        /// </summary>
+        private (double s, double hook) BeamEnd(Ctx c, RebarFrame f, bool atEnd, double off, double z, double ext, double ends,
+            double hook, double up, double hookCover, string size)
+        {
+            XYZ outward = atEnd ? f.U : -f.U;
+            double s = atEnd ? f.Length : 0;
+            var offsets = off > 0 ? new[] { -off, off } : new[] { 0.0 };
+            double support = offsets.Min(o => Concrete.ContinuousFrom(f.P(s, o, z), outward, ext + ends + 0.05, RebarConcrete.Supports));
+            double past = Math.Min(ext, support - ends);
+            string side = atEnd ? "end" : "start";
+            if (support <= 0) Notes.Add($"{c.Label}: no wall, column or beam at the {side}; the bars stop inside the beam");
+            else if (past < ext - 1e-6) Notes.Add($"{c.Label}: the support at the {side} takes {Math.Max(0, past):0.00} m of the {ext:0.00} m anchorage");
+            s += atEnd ? past : -past;
+            if (hook <= 0) return (s, 0);
+            double room = offsets.Min(o => Concrete.ContinuousFrom(f.P(s, o, z), up * XYZ.BasisZ, hook + hookCover + 0.05)) - hookCover;
+            double leg = Math.Min(hook, room);
+            if (leg < 4 * Db(size))
+            {
+                Notes.Add($"{c.Label}: no room for the {size} hook at the {side}; straight bar end");
+                return (s, 0);
+            }
+            if (leg < hook - 1e-6) Notes.Add($"{c.Label}: {size} hook at the {side} shortened to {leg:0.00} m to stay in the concrete (12 db = {12 * Db(size):0.00} m)");
+            return (s, leg);
         }
 
         // ------------------------------------------------------------------ footings

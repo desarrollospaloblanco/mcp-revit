@@ -174,7 +174,8 @@ namespace RevitMCPCommandSet.Services.Rebar
 
             foreach (string name in new[] { FullView, LapView })
             {
-                View3D old = views.FirstOrDefault(v => v.Name == name);
+                // The list still holds the view deleted in the previous turn of this loop.
+                View3D old = views.FirstOrDefault(v => v.IsValidObject && v.Name == name);
                 if (old != null)
                 {
                     if (!replace) continue;

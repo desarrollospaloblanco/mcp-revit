@@ -60,15 +60,38 @@ namespace RevitMCPCommandSet.Services.Rebar
             };
         }
 
-        /// <summary>Vertices of the element's solids in metres, instance geometry included.</summary>
+        /// <summary>
+        /// Vertices of the element's solids in metres, instance geometry included. Family instances add their
+        /// geometry from before joins and cuts: a lintel inside a wall or a beam under a slab can lose most of
+        /// its solid to the join, and the frame must still measure the whole section.
+        /// </summary>
         public static List<XYZ> Vertices(Element e)
         {
             var points = new List<XYZ>();
             foreach (Solid s in Solids(e))
-                foreach (Edge edge in s.Edges)
-                    foreach (XYZ p in edge.Tessellate())
-                        points.Add(p * 0.3048);
+                AddVertices(s, Transform.Identity, points);
+            if (e is FamilyInstance fi)
+            {
+                GeometryElement original = fi.GetOriginalGeometry(new Options { DetailLevel = ViewDetailLevel.Fine });
+                if (original != null) CollectOriginal(original, fi.GetTotalTransform(), points);
+            }
             return points;
+        }
+
+        private static void CollectOriginal(GeometryElement geom, Transform transform, List<XYZ> points)
+        {
+            foreach (GeometryObject o in geom)
+            {
+                if (o is Solid s && s.Volume > 1e-6) AddVertices(s, transform, points);
+                else if (o is GeometryInstance gi) CollectOriginal(gi.GetSymbolGeometry(), transform.Multiply(gi.Transform), points);
+            }
+        }
+
+        private static void AddVertices(Solid s, Transform transform, List<XYZ> points)
+        {
+            foreach (Edge edge in s.Edges)
+                foreach (XYZ p in edge.Tessellate())
+                    points.Add(transform.OfPoint(p) * 0.3048);
         }
 
         public static List<Solid> Solids(Element e)

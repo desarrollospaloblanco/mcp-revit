@@ -37,6 +37,9 @@ node build_deck.js mi_config.json
 - Las rutas relativas del archivo de configuración se leen desde la carpeta del archivo.
 - `images.full` e `images.laps` son las vistas "ACERO - 3D completo" y "ACERO - Zonas de traslape"
   exportadas a PNG. Son opcionales.
+- `lapRule` es opcional. Cuando los traslapes salen de una tabla del proyecto (`lapLengths` en las
+  herramientas) y no de 40 db, pon aquí su origen, por ejemplo "la tabla ES-00 C.4", y los
+  reportes lo citan en lugar de "40 diámetros".
 - La presentación necesita `pptxgenjs` (`npm i pptxgenjs@4`, o `NODE_PATH` hacia una instalación) y
   `DPB_SKILL_DIR` apuntando a la skill `dpb-presentaciones`, de donde sale el isotipo. Sin esa
   variable la presentación sale sin isotipo; nunca se redibuja.

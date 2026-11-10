@@ -97,7 +97,7 @@ def build(cfg, data):
         put(wp, i, 2, v, fmt, color="0000FF")
         put(wp, i, 5, n, color="5A6270")
     QQc, WV, WM = "Parámetros!$B$5", "Parámetros!$B$6", "Parámetros!$B$7"
-    header(wp, 11, ["Clave", "Diámetro", "kg/m", f"Traslape {data['lapFactor']:g} db (m)", ""])
+    header(wp, 11, ["Clave", "Diámetro", "kg/m", f"Traslape {rc.lap_rule(cfg, data, True)} (m)", ""])
     k0 = 12
     for j, s in enumerate(sizes, k0):
         put(wp, j, 1, s)
@@ -237,7 +237,7 @@ def build(cfg, data):
         r += 1
 
     wl = bk.sheet("Traslapes", [10, 24, 40, 12, 12, 9, 24])
-    title(wl, "Traslapes", f"Empalmes por traslape de {data['lapFactor']:g} db, fuera de nudos. El id es el del marcador en el modelo y del parámetro Traslape.")
+    title(wl, "Traslapes", f"Empalmes por traslape de {rc.lap_rule(cfg, data, True)}, fuera de nudos. El id es el del marcador en el modelo y del parámetro Traslape.")
     header(wl, 4, ["Traslape", "Elemento", "Barra", "Diámetro", "Largo (m)", "Barras", "Piezas que une (m)"])
     r = 5
     for lp in data["lapSplices"]:
@@ -317,7 +317,7 @@ def build(cfg, data):
         for c in row:
             if c.value is not None:
                 c.border = BOX
-    put(ws, r + 1, 1, f"Varilla comercial de {data['stockLength']:g} m · traslapes de {data['lapFactor']:g} db fuera de nudos · "
+    put(ws, r + 1, 1, f"Varilla comercial de {data['stockLength']:g} m · traslapes de {rc.lap_rule(cfg, data, True)} fuera de nudos · "
         f"desperdicio {waste:.0%}. Las cifras se redondean hacia arriba cada una desde su exacto.", color="5A6270")
 
     bk.wb.save(cfg["_paths"]["xlsx"])

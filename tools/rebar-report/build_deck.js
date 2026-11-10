@@ -132,7 +132,7 @@ const picture = (s, p, x, y, w, h) => s.addImage({ path: p, x, y, w, h, sizing: 
   const laps = Object.keys(D.laps).sort(sizeSort).map((k) => `${sizeName(k)} ${D.laps[k].toFixed(2)}`).join(", ");
   const items = [
     [`Varilla de ${D.stockLength} m`, `Ninguna barra pasa del largo comercial. Las que lo exceden se parten en piezas con traslape; la más larga mide ${S.longestBar.toFixed(2)} m.`],
-    [`Traslape de ${D.lapFactor} diámetros`, `Largo en que dos barras se enciman para pasarse la fuerza. ${laps} m.`],
+    [C.lapRule ? `Traslapes de ${C.lapRule}` : `Traslape de ${D.lapFactor} diámetros`, `Largo en que dos barras se enciman para pasarse la fuerza. ${laps} m.`],
     ["Sin traslapes en nudos", "El empalme queda completo en la mitad central del claro libre y a más de 2h de la cara del apoyo (ACI 318-19)."],
     ["Empalmes alternados", "Los grupos de barras de un mismo elemento empalman desde extremos alternos, para no debilitar una misma sección."],
   ].concat((C.criteria || []).map((c) => [c[0], c[1]])).slice(0, 6);

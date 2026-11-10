@@ -55,6 +55,13 @@ def level_label(cfg, name):
     return cfg["levelNames"].get(name, name)
 
 
+def lap_rule(cfg, data, short=False):
+    """Origen de los traslapes: lapRule del config cuando los largos vienen de una tabla del proyecto, si no 40 db."""
+    if cfg.get("lapRule"):
+        return cfg["lapRule"]
+    return f"{data['lapFactor']:g} db" if short else f"{data['lapFactor']:g} diámetros"
+
+
 def bars(data):
     return [r for r in data["rows"] if r["kind"] == "bar"]
 

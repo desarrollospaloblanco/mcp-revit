@@ -80,7 +80,7 @@ def build(cfg, data):
     parts.append(f"<h1>Acero de refuerzo de la {e(name)}</h1><div class=rule></div>")
     parts.append(f'<p class="lede">{e(cfg.get("subtitle", ""))} Pesos en quintales de 100 lb (qq), cada cifra redondeada hacia arriba '
                  f'al quintal entero desde su valor exacto; con desperdicio de {W:.0%}. Varilla comercial de {stock:g} m, traslapes de '
-                 f'{data["lapFactor"]:g} diámetros fuera de nudos.</p>')
+                 f'{e(rc.lap_rule(cfg, data))} fuera de nudos.</p>')
     zone_txt = " y ".join(f"{z} {qq(S['byZone'][z]['bar'] + S['byZone'][z]['mesh'])} qq netos" for z in zones)
     parts.append('<div class="ledger">'
                  f'<div><span>Acero total con {W:.0%}</span><b class="main">{n0(S["total"]["withWasteRoundedUp"])} qq</b><small>{n0(S["total"]["netRoundedUp"])} qq netos{(" · " + e(zone_txt)) if zones else ""}</small></div>'
@@ -160,7 +160,7 @@ def build(cfg, data):
 
     # criterios y RFI
     crit = [(f"Varilla de {stock:g} m", f"Ninguna pieza pasa del largo comercial; la más larga mide {S['longestBar']:.2f} m."),
-            (f"Traslape de {data['lapFactor']:g} diámetros", "Largo en que dos barras se enciman para pasarse la fuerza, redondeado a 0.05 m."),
+            (f"Traslapes de {rc.lap_rule(cfg, data)}", "Largo en que dos barras se enciman para pasarse la fuerza, redondeado a 0.05 m."),
             ("Empalmes alternados", "Los grupos de barras de un mismo elemento empalman desde extremos alternos para no cortar una misma sección.")]
     crit += [tuple(c) for c in cfg["criteria"]]
     parts.append("<h2>Criterios</h2><div class=crit>" + "".join(f"<div><b>{e(a)}</b>{e(b)}</div>" for a, b in crit) + "</div>")

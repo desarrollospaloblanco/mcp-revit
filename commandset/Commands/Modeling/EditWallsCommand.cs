@@ -8,7 +8,8 @@ namespace RevitMCPCommandSet.Commands.Modeling
     /// <summary>
     /// Wall clean-up operations that kept coming back as scripts: align to a line by axis or face,
     /// snap ends to a module, extend or trim ends to the nearest wall, merge collinear pieces, delete
-    /// duplicates, control end joins, change the location line without moving the wall, and flip.
+    /// duplicates, control end joins, apply a join hierarchy by wall type, change the location line
+    /// without moving the wall, and flip.
     /// </summary>
     public class EditWallsCommand : DelegateCommand
     {
@@ -34,6 +35,7 @@ namespace RevitMCPCommandSet.Commands.Modeling
                 var warnings = new List<string>();
                 var changes = new List<object>();
                 var skipped = new List<object>();
+                HierarchySummary summary = null;
 
                 ToolTransaction.Run(doc, "MCP: muros " + op, options, warnings, () =>
                 {
@@ -45,12 +47,13 @@ namespace RevitMCPCommandSet.Commands.Modeling
                         case "merge": Merge(doc, walls, Metric.Ft(parameters?["toleranceMeters"]?.Value<double>() ?? 0.01), changes, skipped); break;
                         case "dedupe": Dedupe(doc, walls, Metric.Ft(parameters?["toleranceMeters"]?.Value<double>() ?? 0.02), changes, skipped); break;
                         case "joins": Joins(walls, parameters, changes); break;
+                        case "hierarchy": summary = Hierarchy(walls, parameters, changes); break;
                         case "locationline": LocationLine(doc, walls, parameters?["locationLine"]?.Value<string>(), changes); break;
                         case "flip": foreach (Wall w in walls) { w.Flip(); changes.Add(new { id = ElementSelection.Id(w), flipped = w.Flipped }); } break;
-                        default: throw new ArgumentException("operation must be align, snap, extend, merge, dedupe, joins, locationLine or flip");
+                        default: throw new ArgumentException("operation must be align, snap, extend, merge, dedupe, joins, hierarchy, locationLine or flip");
                     }
                 }, dryRun);
-                return new { document = doc.Title, operation = op, dryRun, selected = walls.Count, changed = changes.Count, changes, skipped, warnings };
+                return new { document = doc.Title, operation = op, dryRun, selected = walls.Count, changed = summary?.joinsDisallowed ?? changes.Count, summary, changes, skipped, warnings };
             }, 900);
         }
 
@@ -285,6 +288,103 @@ namespace RevitMCPCommandSet.Commands.Modeling
                 }
                 changes.Add(new { id = ElementSelection.Id(w), joins = allow ? "allowed" : "disallowed", ends });
             }
+        }
+
+        private class HierarchySummary
+        {
+            public int endsChecked { get; set; }
+            public int joinsDisallowed { get; set; }
+            public object byTypes { get; set; }
+            public string note { get; set; }
+        }
+
+        private class RankRule
+        {
+            public string StartsWith;
+            public string Contains;
+            public int Rank;
+        }
+
+        /// <summary>Concrete over masonry over drywall, the order DPB models use (B-CN, BC, TY type names).</summary>
+        private static readonly List<RankRule> DefaultRanks = new List<RankRule>
+        {
+            new RankRule { StartsWith = "B-CN", Rank = 3 },
+            new RankRule { Contains = "BC", Rank = 2 },
+            new RankRule { Contains = "TY", Rank = 1 }
+        };
+
+        private static List<RankRule> Ranks(JObject p)
+        {
+            if (!(p?["ranks"] is JArray array) || array.Count == 0) return DefaultRanks;
+            return array.Select(t =>
+            {
+                var rule = new RankRule
+                {
+                    StartsWith = t["typeStartsWith"]?.Value<string>(),
+                    Contains = t["typeContains"]?.Value<string>(),
+                    Rank = t["rank"]?.Value<int>() ?? throw new ArgumentException("every entry of ranks needs a rank")
+                };
+                if (rule.StartsWith == null && rule.Contains == null)
+                    throw new ArgumentException("every entry of ranks needs typeStartsWith or typeContains");
+                return rule;
+            }).ToList();
+        }
+
+        /// <summary>First matching rule wins; curtain walls and unmatched types rank 0 and are left alone.</summary>
+        private static int RankOf(Wall w, List<RankRule> rules)
+        {
+            if (w.WallType.Kind != WallKind.Basic) return 0;
+            string name = w.WallType.Name;
+            foreach (RankRule r in rules)
+            {
+                if (r.StartsWith != null && !name.StartsWith(r.StartsWith, StringComparison.OrdinalIgnoreCase)) continue;
+                if (r.Contains != null && name.IndexOf(r.Contains, StringComparison.OrdinalIgnoreCase) < 0) continue;
+                return r.Rank;
+            }
+            return 0;
+        }
+
+        /// <summary>
+        /// Where a wall meets one of a higher rank, its join at that end is disallowed, so the lower
+        /// wall stops at the face of the higher one instead of cleaning into it (drywall ends on the
+        /// concrete face and never takes from it). Only the selected walls are changed; the walls
+        /// they meet are judged whether selected or not.
+        /// </summary>
+        private const int ListedEnds = 300;
+
+        private static HierarchySummary Hierarchy(List<Wall> walls, JObject p, List<object> changes)
+        {
+            List<RankRule> rules = Ranks(p);
+            var pairs = new Dictionary<string, int>();
+            int checkedEnds = 0;
+            foreach (Wall w in walls)
+            {
+                int rank = RankOf(w, rules);
+                if (rank <= 0) continue;
+                if (!(w.Location is LocationCurve lc)) continue;
+                for (int end = 0; end < 2; end++)
+                {
+                    checkedEnds++;
+                    Wall higher = lc.get_ElementsAtJoin(end).Cast<Element>().OfType<Wall>()
+                        .Where(o => o.Id != w.Id)
+                        .OrderByDescending(o => RankOf(o, rules))
+                        .FirstOrDefault(o => RankOf(o, rules) > rank);
+                    if (higher == null || !WallUtils.IsWallJoinAllowedAtEnd(w, end)) continue;
+                    WallUtils.DisallowWallJoinAtEnd(w, end);
+                    string key = w.WallType.Name + " > " + higher.WallType.Name;
+                    pairs[key] = pairs.TryGetValue(key, out int n) ? n + 1 : 1;
+                    if (changes.Count < ListedEnds)
+                        changes.Add(new { id = ElementSelection.Id(w), end = end == 0 ? "start" : "end", meets = ElementSelection.Id(higher) });
+                }
+            }
+            int total = pairs.Values.Sum();
+            return new HierarchySummary
+            {
+                endsChecked = checkedEnds,
+                joinsDisallowed = total,
+                byTypes = pairs.OrderByDescending(kv => kv.Value).Select(kv => new { types = kv.Key, ends = kv.Value }).ToList(),
+                note = total > ListedEnds ? $"only the first {ListedEnds} ends are listed in changes" : null
+            };
         }
 
         /// <summary>

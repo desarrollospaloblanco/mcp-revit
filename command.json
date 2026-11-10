@@ -114,6 +114,11 @@
       "assemblyPath": "RevitMCPCommandSet.dll"
     },
     {
+      "commandName": "shift_levels",
+      "description": "Move levels from an elevation by an offset and renumber them with their plan views",
+      "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
       "commandName": "send_code_to_revit",
       "description": "Execute dynamic C# code in Revit with access to the Document and Revit API",
       "assemblyPath": "RevitMCPCommandSet.dll"

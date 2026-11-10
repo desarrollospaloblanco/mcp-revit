@@ -12,7 +12,7 @@ const transactionModeSchema = z
 export function registerSendCodeToRevitTool(server: McpServer) {
   server.tool(
     "send_code_to_revit",
-    "Send C# code to Revit for execution. The code will be inserted into a template with access to the Revit Document and parameters. Your code should be written to work within the Execute method of the template. " +
+    "Send C# code to Revit for execution. The code will be inserted into a template with access to the Revit Document (`document`) and parameters; there is no `uiapp`. Pass documentTitle to work on a model other than the active one. Your code should be written to work within the Execute method of the template. " +
       "Each run is wrapped in a transaction group on every open document, so all its changes become one undo step and the response lists what was created, modified and deleted per document. " +
       "Use dryRun=true to see that change summary without keeping anything. The machine-wide execution policy (set_execution_policy) can require approval in Revit or make every run a dry run. " +
       "Scripts that save, synchronize, open or close documents must pass group=false. Every run is recorded for 14 days (get_run_history, get_run).",
@@ -43,6 +43,12 @@ export function registerSendCodeToRevitTool(server: McpServer) {
         .string()
         .optional()
         .describe("Short name of what the run does. It names the undo step and the run record, and appears in the approval prompt."),
+      documentTitle: z
+        .string()
+        .optional()
+        .describe(
+          "Exact title of the open document the code works on; `document` is that model and the automatic transaction opens on it, so there is no need to look it up in document.Application.Documents. Defaults to the active document. Fails if no open model has that title."
+        ),
       timeoutSeconds: z
         .number()
         .int()
@@ -59,6 +65,7 @@ export function registerSendCodeToRevitTool(server: McpServer) {
         dryRun: args.dryRun ?? false,
         group: args.group ?? true,
         title: args.title,
+        documentTitle: args.documentTitle,
         timeoutSeconds: args.timeoutSeconds,
       };
       // The plugin enforces timeoutSeconds; the socket waits a little longer so it receives the

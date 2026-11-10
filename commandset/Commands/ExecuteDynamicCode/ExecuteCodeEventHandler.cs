@@ -32,6 +32,7 @@ namespace RevitMCPCommandSet.Commands.ExecuteDynamicCode
         private bool _dryRun;
         private bool _group = true;
         private string _title;
+        private string _documentTitle;
 
         public ExecutionResultInfo ResultInfo { get; private set; }
 
@@ -51,7 +52,7 @@ namespace RevitMCPCommandSet.Commands.ExecuteDynamicCode
         public string CurrentRunTitle => _title;
 
         public void SetExecutionParameters(string code, object[] parameters, string transactionMode,
-            bool dryRun, bool group, string title)
+            bool dryRun, bool group, string title, string documentTitle)
         {
             _generatedCode = code;
             _executionParameters = parameters ?? Array.Empty<object>();
@@ -59,6 +60,7 @@ namespace RevitMCPCommandSet.Commands.ExecuteDynamicCode
             _dryRun = dryRun;
             _group = group;
             _title = string.IsNullOrWhiteSpace(title) ? "MCP: código C#" : "MCP: " + title.Trim();
+            _documentTitle = string.IsNullOrWhiteSpace(documentTitle) ? null : documentTitle;
             TaskCompleted = false;
             _resetEvent.Reset();
             _idle.Reset();
@@ -101,13 +103,16 @@ namespace RevitMCPCommandSet.Commands.ExecuteDynamicCode
             {
                 Document activeDoc = app.ActiveUIDocument?.Document;
                 record.ActiveDocument = activeDoc?.Title;
+                // With several models open, the script names the one it works on instead of looking it
+                // up itself; `document` and the automatic transaction then point at that model.
+                Document targetDoc = _documentTitle == null ? activeDoc : ResolveTarget(app, _documentTitle);
 
                 using (var tracker = new ChangeTracker(app.Application))
                 {
                     if (grouped)
                         groups = StartGroups(app, _title);
 
-                    object result = Run(activeDoc);
+                    object result = Run(targetDoc);
                     ResultInfo.Result = JsonConvert.SerializeObject(result);
                     ResultInfo.Changes = tracker.Summarize();
 
@@ -208,21 +213,36 @@ namespace RevitMCPCommandSet.Commands.ExecuteDynamicCode
         private static List<string> Distinct(List<string> messages) =>
             messages.GroupBy(m => m).Select(g => g.Count() > 1 ? $"{g.Key} (x{g.Count()})" : g.Key).Take(20).ToList();
 
-        private object Run(Document activeDoc)
+        private object Run(Document doc)
         {
             if (_transactionMode == TransactionModeNone)
-                return CompileAndExecuteCode(_generatedCode, activeDoc, _executionParameters);
+                return CompileAndExecuteCode(_generatedCode, doc, _executionParameters);
 
-            if (activeDoc == null)
-                throw new InvalidOperationException("No active document; use transactionMode 'none' and pick the document by title");
+            if (doc == null)
+                throw new InvalidOperationException("No active document; pass documentTitle or use transactionMode 'none'");
+            if (doc.IsReadOnly)
+                throw new InvalidOperationException($"'{doc.Title}' is read-only; it cannot be modified");
 
-            using (var transaction = new Transaction(activeDoc, "执行AI代码"))
+            using (var transaction = new Transaction(doc, "执行AI代码"))
             {
                 transaction.Start();
-                object result = CompileAndExecuteCode(_generatedCode, activeDoc, _executionParameters);
+                object result = CompileAndExecuteCode(_generatedCode, doc, _executionParameters);
                 transaction.Commit();
                 return result;
             }
+        }
+
+        /// <summary>The open project with exactly this title; links and families are not candidates.</summary>
+        private static Document ResolveTarget(UIApplication app, string title)
+        {
+            var open = app.Application.Documents.Cast<Document>().Where(d => !d.IsLinked && !d.IsFamilyDocument).ToList();
+            var matches = open.Where(d => string.Equals(d.Title, title, StringComparison.Ordinal)).ToList();
+            if (matches.Count == 1)
+                return matches[0];
+            string list = open.Count == 0 ? "(none)" : string.Join(", ", open.Select(d => "'" + d.Title + "'"));
+            if (matches.Count == 0)
+                throw new InvalidOperationException($"No open document is titled '{title}'. Open documents: {list}");
+            throw new InvalidOperationException($"{matches.Count} open documents are titled '{title}'; close the extra copy first");
         }
 
         /// <summary>One group per open, editable document; documents that refuse a group are skipped.</summary>
@@ -357,6 +377,8 @@ namespace RevitMCPCommandSet.Commands.ExecuteDynamicCode
                             message.IndexOf("transaction group", StringComparison.OrdinalIgnoreCase) >= 0 ||
                             message.IndexOf("close", StringComparison.OrdinalIgnoreCase) >= 0))
                 return " (los scripts que guardan, sincronizan, abren o cierran documentos deben usar group=false)";
+            if (message.IndexOf("'uiapp'", StringComparison.Ordinal) >= 0 || message.IndexOf("'uidoc'", StringComparison.Ordinal) >= 0)
+                return " (el script solo recibe 'document' y 'parameters'; para otro modelo usa documentTitle o document.Application.Documents)";
             return "";
         }
 

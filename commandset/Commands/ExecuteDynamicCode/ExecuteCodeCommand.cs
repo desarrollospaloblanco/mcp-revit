@@ -40,6 +40,7 @@ namespace RevitMCPCommandSet.Commands.ExecuteDynamicCode
                 bool dryRun = parameters["dryRun"]?.Value<bool>() ?? false;
                 bool group = parameters["group"]?.Value<bool>() ?? true;
                 string title = parameters["title"]?.Value<string>();
+                string documentTitle = parameters["documentTitle"]?.Value<string>();
 
                 // Waiting for the user's approval can take minutes, so the ask policy gets a longer default.
                 int defaultTimeout = ExecutionPolicy.Current == ExecutionPolicy.Ask ? DefaultAskTimeoutSeconds : DefaultTimeoutSeconds;
@@ -53,7 +54,7 @@ namespace RevitMCPCommandSet.Commands.ExecuteDynamicCode
                         throw new TimeoutException(
                             $"Revit is still executing the previous run ({_handler.CurrentRunTitle}); nothing was sent. Check get_run_history and retry later.");
 
-                    _handler.SetExecutionParameters(code, executionParameters, transactionMode, dryRun, group, title);
+                    _handler.SetExecutionParameters(code, executionParameters, transactionMode, dryRun, group, title, documentTitle);
 
                     if (RaiseAndWaitForCompletion(timeoutSeconds * 1000))
                     {

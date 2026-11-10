@@ -214,6 +214,21 @@ steel take-offs are done (Sherman, Lincoln and Hamilton at Persea de Arrazola):
   (middle of the clear span, 2h from beam supports; slabs are the joints of a
   vertical bar), alternate splices between the sets of an element, and draw a
   magenta marker grouped as `Traslape T001 - ...` on every lap.
+- Both take a `runMark`, and `replacePrevious` is **true by default**: every
+  run first deletes the bars, meshes and lap markers placed by the previous
+  run with the same `runMark`. Give each pass its own mark, or pass
+  `replacePrevious: false`, when a run adds steel to what an earlier run with
+  that mark already placed.
+- Both check that the steel stays inside the concrete (`verifyInsideConcrete`,
+  true by default): every bar is intersected with the solids of the walls,
+  slabs, beams, columns, foundations and stairs, and `insideConcrete` lists
+  the sets with more than 5 % of their length outside.
+- Beam bars of `rebar_by_type` run past the end of the beam (`extend`, 0.15 m)
+  only into a wall, column or beam that receives them, keeping the end cover
+  from its far face; with no support they stop inside the beam at the end
+  cover, and hook legs are shortened to fit the concrete.
+- The `Diámetro o malla` parameter carries the size key used by the take-off
+  and its tables: `#4`, `ø6.2`.
 - `rebar_takeoff` weighs everything in quintals of 100 lb, splits it by a
   dividing line (the party wall of a duplex) and by level, writes the
   `MCP Acero` parameters, builds the schedules ACERO 01-05 and the 3D views

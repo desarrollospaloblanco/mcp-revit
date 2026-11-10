@@ -2,8 +2,37 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { z } from "zod";
+
+/**
+ * Tools declare their parameters as a raw shape, which zod turns into an object that silently drops
+ * unknown keys. A misspelt option then falls back to its default: save_documents called with
+ * documentTitles instead of documents went over every open model. Registering the shape as a strict
+ * object makes a wrong parameter name fail with its name instead.
+ */
+function rejectUnknownParameters(server: McpServer) {
+  const original = server.tool.bind(server) as (...args: unknown[]) => unknown;
+  const isShape = (value: unknown) =>
+    typeof value === "object" &&
+    value !== null &&
+    !(value instanceof z.ZodType) &&
+    Object.values(value).some((v) => v instanceof z.ZodType);
+  (server as unknown as { tool: (...args: unknown[]) => unknown }).tool = (...args: unknown[]) => {
+    const [name, description, shape, callback] = args;
+    if (args.length === 4 && typeof name === "string" && typeof description === "string" && isShape(shape) && typeof callback === "function") {
+      return server.registerTool(
+        name,
+        { description, inputSchema: z.object(shape as z.ZodRawShape).strict() },
+        callback as Parameters<McpServer["registerTool"]>[2]
+      );
+    }
+    return original(...args);
+  };
+}
 
 export async function registerTools(server: McpServer) {
+  rejectUnknownParameters(server);
+
   // 获取当前文件的目录路径
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = path.dirname(__filename);

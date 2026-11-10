@@ -304,6 +304,11 @@
       "assemblyPath": "RevitMCPCommandSet.dll"
     },
     {
+      "commandName": "arrange_datums",
+      "description": "Level and grid lines, heads and crop in sections and elevations",
+      "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
       "commandName": "create_sheets",
       "description": "Create sheets with title block and placed views",
       "assemblyPath": "RevitMCPCommandSet.dll"

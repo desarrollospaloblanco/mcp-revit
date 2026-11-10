@@ -360,24 +360,28 @@ namespace RevitMCPCommandSet.Services.Rebar
             if (face == null) { Notes.Add(c.Label + ": no planar side face, mesh skipped"); return; }
             double half = wall.Width / 2;
             var shift = Transform.CreateTranslation(-n * half);
-            var loops = face.GetEdgesAsCurveLoops().Select(l => Points(l, shift)).ToList();
             XYZ along = new XYZ(-n.Y, n.X, 0).Normalize();
             bool vertical = string.Equals(c.Rule["majorDirection"]?.Value<string>(), "vertical", StringComparison.OrdinalIgnoreCase);
-            XYZ origin = loops[0].OrderBy(p => p.Z).ThenBy(p => p.X * along.X + p.Y * along.Y).First();
-            for (int k = 0; k < Math.Max(1, Math.Min(2, layers)); k++)
-                Meshes.Add(new MeshSpec
-                {
-                    Element = c.Label,
-                    Group = c.Group,
-                    Description = $"E.M. {sheet.Name}" + (layers > 1 ? (k == 0 ? " exterior" : " interior") : "") + $" ({c.Tag})",
-                    Loops = loops,
-                    MajorDirection = vertical ? XYZ.BasisZ : along,
-                    Origin = origin,
-                    Top = k == 0,
-                    Lap = c.Rule["lap"]?.Value<double>() ?? 0.20,
-                    Sheet = sheet,
-                    HostId = wall.Id
-                });
+            var parts = Parts(face.GetEdgesAsCurveLoops().Select(l => Points(l, shift)).ToList(), along, XYZ.BasisZ);
+            for (int part = 0; part < parts.Count; part++)
+            {
+                var loops = parts[part];
+                XYZ origin = loops[0].OrderBy(p => p.Z).ThenBy(p => p.X * along.X + p.Y * along.Y).First();
+                for (int k = 0; k < Math.Max(1, Math.Min(2, layers)); k++)
+                    Meshes.Add(new MeshSpec
+                    {
+                        Element = c.Label,
+                        Group = c.Group,
+                        Description = $"E.M. {sheet.Name}" + (layers > 1 ? (k == 0 ? " exterior" : " interior") : "") + $" ({c.Tag})" + (parts.Count > 1 ? $" parte {part + 1}" : ""),
+                        Loops = loops,
+                        MajorDirection = vertical ? XYZ.BasisZ : along,
+                        Origin = origin,
+                        Top = k == 0,
+                        Lap = c.Rule["lap"]?.Value<double>() ?? 0.20,
+                        Sheet = sheet,
+                        HostId = wall.Id
+                    });
+            }
         }
 
         private void SlabMesh(Ctx c)
@@ -386,19 +390,21 @@ namespace RevitMCPCommandSet.Services.Rebar
             int layers = c.Rule["layers"]?.Value<int>() ?? 1;
             PlanarFace face = RebarFrame.FaceToward(c.Element, XYZ.BasisZ);
             if (face == null) { Notes.Add(c.Label + ": no flat top face, mesh skipped"); return; }
-            var loops = face.GetEdgesAsCurveLoops().Select(l => Points(l, Transform.Identity)).ToList();
             string dir = (c.Rule["majorDirection"]?.Value<string>() ?? "x").ToLowerInvariant();
             XYZ major = dir == "y" ? XYZ.BasisY : XYZ.BasisX;
-            XYZ origin = loops[0].OrderBy(p => p.Y).ThenBy(p => p.X).First();
             string location = (c.Rule["location"]?.Value<string>() ?? "top").ToLowerInvariant();
+            var parts = Parts(face.GetEdgesAsCurveLoops().Select(l => Points(l, Transform.Identity)).ToList(), XYZ.BasisX, XYZ.BasisY);
+            for (int part = 0; part < parts.Count; part++)
             for (int k = 0; k < Math.Max(1, Math.Min(2, layers)); k++)
             {
+                var loops = parts[part];
+                XYZ origin = loops[0].OrderBy(p => p.Y).ThenBy(p => p.X).First();
                 bool top = layers > 1 ? k == 0 : location != "bottom";
                 Meshes.Add(new MeshSpec
                 {
                     Element = c.Label,
                     Group = c.Group,
-                    Description = $"E.M. {sheet.Name}" + (layers > 1 ? (top ? " superior" : " inferior") : "") + $" ({c.Tag})",
+                    Description = $"E.M. {sheet.Name}" + (layers > 1 ? (top ? " superior" : " inferior") : "") + $" ({c.Tag})" + (parts.Count > 1 ? $" parte {part + 1}" : ""),
                     Loops = loops,
                     MajorDirection = major,
                     Origin = origin,
@@ -410,16 +416,60 @@ namespace RevitMCPCommandSet.Services.Rebar
             }
         }
 
-        /// <summary>Loop vertices in metres (arcs tessellated), moved by the transform.</summary>
+        /// <summary>
+        /// Loop vertices in metres (arcs tessellated), moved by the transform. Vertices closer than 3 mm are
+        /// merged: joins leave edges below Revit's short-curve tolerance, which fabric areas reject.
+        /// </summary>
         private static List<XYZ> Points(CurveLoop loop, Transform shift)
         {
             var pts = new List<XYZ>();
             foreach (Curve curve in loop)
             {
                 var t = curve.Tessellate();
-                for (int i = 0; i < t.Count - 1; i++) pts.Add(shift.OfPoint(t[i]) * 0.3048);
+                for (int i = 0; i < t.Count - 1; i++)
+                {
+                    XYZ p = shift.OfPoint(t[i]) * 0.3048;
+                    if (pts.Count == 0 || p.DistanceTo(pts[pts.Count - 1]) > 0.003) pts.Add(p);
+                }
             }
+            while (pts.Count > 2 && pts[0].DistanceTo(pts[pts.Count - 1]) <= 0.003) pts.RemoveAt(pts.Count - 1);
             return pts;
+        }
+
+        /// <summary>
+        /// Splits a face's loops into connected pieces, each an outline followed by its holes: a fabric area
+        /// must be one connected region, and a slab or wall face can hold several (separate patios, a wall cut
+        /// in two). a and b span the plane of the face.
+        /// </summary>
+        private static List<List<List<XYZ>>> Parts(List<List<XYZ>> loops, XYZ a, XYZ b)
+        {
+            loops = loops.Where(l => l.Count >= 3).ToList();
+            var flat = loops.Select(l => l.Select(p => (x: p.DotProduct(a), y: p.DotProduct(b))).ToList()).ToList();
+            double Area(int i)
+            {
+                var l = flat[i];
+                double s = 0;
+                for (int k = 0; k < l.Count; k++) { var p = l[k]; var q = l[(k + 1) % l.Count]; s += p.x * q.y - q.x * p.y; }
+                return Math.Abs(s) / 2;
+            }
+            bool Inside(int point, int outline)
+            {
+                var p = flat[point][0]; var l = flat[outline];
+                bool inside = false;
+                for (int i = 0, j = l.Count - 1; i < l.Count; j = i++)
+                    if ((l[i].y > p.y) != (l[j].y > p.y) && p.x < (l[j].x - l[i].x) * (p.y - l[i].y) / (l[j].y - l[i].y) + l[i].x) inside = !inside;
+                return inside;
+            }
+            var outlines = new List<int>();
+            var members = new Dictionary<int, List<List<XYZ>>>();
+            foreach (int i in Enumerable.Range(0, loops.Count).OrderByDescending(Area))
+            {
+                // a loop inside an outline is a hole of the smallest outline holding it
+                int holder = outlines.Where(o => Inside(i, o)).OrderBy(Area).DefaultIfEmpty(-1).First();
+                if (holder >= 0) members[holder].Add(loops[i]);
+                else { outlines.Add(i); members[i] = new List<List<XYZ>> { loops[i] }; }
+            }
+            return outlines.Select(o => members[o]).ToList();
         }
 
         // ------------------------------------------------------------------ host covers

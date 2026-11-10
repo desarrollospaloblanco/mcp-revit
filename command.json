@@ -324,6 +324,11 @@
       "assemblyPath": "RevitMCPCommandSet.dll"
     },
     {
+      "commandName": "set_view_graphics",
+      "description": "Presentation graphics on views: solid cuts, category and rule-based element overrides, hidden categories, copy from another view",
+      "assemblyPath": "RevitMCPCommandSet.dll"
+    },
+    {
       "commandName": "arrange_dimension_text",
       "description": "Move dimension texts so they do not overlap",
       "assemblyPath": "RevitMCPCommandSet.dll"

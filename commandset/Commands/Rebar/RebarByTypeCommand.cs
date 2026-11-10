@@ -88,7 +88,8 @@ namespace RevitMCPCommandSet.Commands.Rebar
                     hostCoversSet = covers,
                     deletedFromPreviousRun = removed,
                     parametersCreated = created,
-                    result = RebarCommandOptions.Report(placer, pieces, generator.Meshes, dryRun)
+                    result = RebarCommandOptions.Report(placer, pieces, generator.Meshes, dryRun),
+                    insideConcrete = RebarCommandOptions.InsideConcrete(parameters, () => generator.Concrete, pieces)
                 };
             }, RebarCommandOptions.Timeout(parameters, 1800));
         }

@@ -33,6 +33,10 @@ namespace RevitMCPCommandSet.Commands.Rebar
             return removed;
         }
 
+        /// <summary>The inside-concrete check of the pieces (verifyInsideConcrete, true by default), or null when switched off.</summary>
+        public static object InsideConcrete(JObject p, Func<RebarConcrete> concrete, IEnumerable<BarSpec> pieces) =>
+            p?["verifyInsideConcrete"]?.Value<bool>() ?? true ? RebarAudit.Check(concrete(), pieces) : null;
+
         public static object Report(RebarPlacer placer, IList<BarSpec> pieces, IList<MeshSpec> meshes, bool dryRun) => new
         {
             dryRun,

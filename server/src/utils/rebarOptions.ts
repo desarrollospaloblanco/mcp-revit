@@ -37,5 +37,13 @@ export const rebarPlacement = {
     .boolean()
     .optional()
     .describe("With runMark, delete the steel and lap markers of the previous run with that mark first. Defaults to true."),
+  verifyInsideConcrete: z
+    .boolean()
+    .optional()
+    .describe(
+      "Intersect every bar (all bars of each set, hook legs drawn as segments included) with the solids of the walls, slabs, beams, " +
+        "columns, foundations and stairs, and list in insideConcrete the sets with more than 5 % of their length outside the concrete. " +
+        "Hooks given as hook types and welded mesh are not measured. Defaults to true."
+    ),
   timeoutSeconds: z.number().optional().describe("Defaults to 1800; large houses take several minutes."),
 };

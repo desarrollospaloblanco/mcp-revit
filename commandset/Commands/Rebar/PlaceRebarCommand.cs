@@ -54,7 +54,8 @@ namespace RevitMCPCommandSet.Commands.Rebar
                     stockLength = catalog.StockLength,
                     deletedFromPreviousRun = removed,
                     parametersCreated = created,
-                    result = RebarCommandOptions.Report(placer, pieces, meshes, dryRun)
+                    result = RebarCommandOptions.Report(placer, pieces, meshes, dryRun),
+                    insideConcrete = RebarCommandOptions.InsideConcrete(parameters, () => new RebarConcrete(doc), pieces)
                 };
             }, RebarCommandOptions.Timeout(parameters, 1800));
         }
